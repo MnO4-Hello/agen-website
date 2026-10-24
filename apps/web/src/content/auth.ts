@@ -80,7 +80,7 @@ export const TERMS: LegalDoc = {
       heading: '七、协议变更与联系方式',
       paragraphs: [
         '本协议可能会随功能调整而更新，更新后会修改本页顶部的日期。继续使用即视为接受更新后的版本。',
-        '有疑问可以发邮件到 hello@example.com。',
+        '有疑问可以发邮件到 3194295857@qq.com。',
       ],
     },
   ],
@@ -135,7 +135,7 @@ export const PRIVACY: LegalDoc = {
       paragraphs: [
         '你可以要求查询、更正或删除你的账号与相关信息。',
         '删除账号后，用户名与昵称会被释放，相关记录会从数据文件中移除。',
-        '联系方式：hello@example.com。',
+        '联系方式：3194295857@qq.com。',
       ],
     },
     {

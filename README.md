@@ -59,7 +59,6 @@ AGenWebsite/
 │  └─ api/                 # 后端：Fastify
 │     └─ src/{routes,works,users,admin,media}/
 ├─ docs/                   # 开发笔记 + README 配图
-├─ tools/                  # 一次性小工具（生成占位头像）
 ├─ services/               # 预留：其他语言的服务
 └─ .env.example            # 环境变量模板
 ```
@@ -96,17 +95,20 @@ npm run user:create -- --username yourname --nickname 昵称 --email you@example
 运行时数据（`apps/api/data/`：账号、作品、上传的图片、会话密钥）与 `.env` 都不进仓库，
 **换机器要重新建账号**。
 
-## 关于占位内容
+## 换成自己的内容
 
-这个仓库里的几样东西是**故意留的占位**，克隆下来直接替换即可：
+下面几样是按「一个人一个站」写死的，克隆下来换成你自己的即可，**代码都不用改**：
 
-- **联系邮箱**：`hello@example.com`（`example.com` 是 RFC 2606 保留域名）。
-  改 `apps/web/src/content/cta.ts` 的 `CTA_EMAIL` 一处即可，GO 按钮与下方小字共用它；
-  `apps/web/src/content/auth.ts` 的协议正文里还有两处同值文本。
-- **头像**：`apps/web/public/portrait-{512,1024}.png` 是 `tools/make-portrait.mjs`
-  生成的抽象剪影。换成自己的照片时保持正方形、两档尺寸一致即可，代码不用改。
-- **相框素材**：`content/my-way.ts` 与 `content/works.ts` 里的相框都是占位面
-  （没有 `src` 时按比例画一块由主题色派生的版画），往 `public/` 下丢图再补一行 `src` 就行。
+- **联系邮箱**：改 `apps/web/src/content/cta.ts` 的 `CTA_EMAIL` 一处就行——圆盘中间的 GO
+  按钮与下方那行小字共用这个常量。另外 `apps/web/src/content/auth.ts` 的《用户协议》第七节
+  与《隐私政策》第六节正文里各有一处同样的地址，一并替换。
+- **头像**：`apps/web/public/portrait-1024.png` 与 `portrait-512.png` 是同一张图的两档尺寸，
+  覆盖同名文件即可。**必须正方形且两档一致**（1024×1024 / 512×512）——「我是谁」里的点阵
+  是按方图切格的，非方图会让头像变形；原图还要有明暗对比，因为采样规则是「每格保留离该格
+  平均色最远的像素」，一片柔光的图点出来会糊成一团。档位表在
+  `apps/web/src/pages/home-view.ts` 的 `portraitWidths`（现在是 `[512, 1024]`）。
+- **相框素材**：`content/my-way.ts` 与 `content/works.ts` 里的相框都没有 `src`，会按比例画
+  一块由主题色派生的版画；往 `public/` 下丢图再补一行 `src` 就换成真图。
 
 ## 更多文档
 

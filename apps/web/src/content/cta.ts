@@ -42,11 +42,11 @@ export const CTA_BUTTON_LABEL = 'GO';
 /**
  * 圆盘展开后那枚链接的地址，同时也是**页脚那颗「回到顶部」胶囊**之外唯一的联系方式。
  *
- * 参考站是 Cloudflare 混淆过的 `mailto:`。这里是**占位地址**（`example.com` 是 RFC 2606
- * 保留域名，永远不解析），换成本站真实邮箱只改这一行——
- * GO 按钮与底下那行小字**共用这一个常量**，别在别处再写一遍字面量。
+ * 参考站是 Cloudflare 混淆过的 `mailto:`。换邮箱只改这一行——
+ * GO 按钮与底下那行小字**共用这一个常量**，别在别处再写一遍字面量；
+ * `content/auth.ts` 的协议（第七节）与隐私政策（第六节）正文里另有两处同值地址，一并改。
  */
-export const CTA_EMAIL = 'hello@example.com';
+export const CTA_EMAIL = '3194295857@qq.com';
 
 /**
  * 该 section 的无障碍名字。

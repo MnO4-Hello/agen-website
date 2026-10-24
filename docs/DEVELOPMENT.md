@@ -62,7 +62,6 @@ AGenWebsite/
 │  ├─ python/           # 预留：Python 服务
 │  └─ java/             # 预留：Java 服务
 ├─ docs/                # 文档（本文件 + screenshots/ 里的 README 配图）
-├─ tools/               # 一次性小工具（make-portrait.mjs 生成占位头像）
 ├─ package.json         # npm workspaces 根，统一脚本入口
 ├─ tsconfig.base.json   # 共享 TypeScript 配置
 ├─ .env.example         # 环境变量模板
@@ -406,13 +405,13 @@ npm run dev                       # 前端 5173 + 后端 3000
 - **换隐藏管理后台的地址**：把 `apps/web/admin.html` 改成你喜欢的文件名，并同步
   [vite.config.ts](apps/web/vite.config.ts) 里 `admin: html('admin.html')` 这一行。
   真正的保护仍然是登录，改名只是少被人撞见。
-- **更换头像**：把原图放进 [apps/web/public/](apps/web/public/)，按
-  `portrait-512.png` / `portrait-1024.png` 两种尺寸导出即可；更换后
-  [main.ts](apps/web/src/main.ts) 里的 `portraitWidths` 需要同步，采样器会自动
-  重新把新照片切成点阵。
-  仓库里这两张是 `tools/make-portrait.mjs` 生成的**占位图**（抽象头肩剪影），
-  换成真照片时**尺寸必须仍是正方形**且两档一致（1024×1024 / 512×512）：
+- **更换头像**：把图按 `portrait-1024.png` / `portrait-512.png` 两档导出到
+  [apps/web/public/](apps/web/public/) 覆盖同名文件即可，代码不用改——
+  [home-view.ts](apps/web/src/pages/home-view.ts) 的 `portraitWidths`（当前 `[512, 1024]`）
+  会把这两档拼成 `srcset`，[sections/identity.ts](apps/web/src/sections/identity.ts)
+  取图后交给采样器重新切成点阵。
+  两张图**必须正方形且两档一致**（1024×1024 / 512×512）：
   `samplePortraitGrid(image, 640, 20)` 是按方图切格的，非方图会让点阵变形。
-  另外原图要有明暗对比——采样规则是「每格保留离该格平均色最远的像素」，
-  一片柔光的照片点出来会糊成一团。
+  原图还要够「硬」——采样规则是「每格保留离该格平均色最远的像素」，明暗对比不足的
+  柔光图点出来会糊成一团。要加第三档（比如 2048）时才需要同步 `portraitWidths`。
 - **新增其他语言的服务**：见 [services/README.md](services/README.md)。
