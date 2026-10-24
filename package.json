@@ -1,0 +1,27 @@
+{
+  "name": "agen-website",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal website monorepo: Vite + TypeScript frontend, Node.js API, and reserved polyglot service folders.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "npm run dev --workspace @agen/web",
+    "dev:api": "npm run dev --workspace @agen/api",
+    "build": "npm run build --workspace @agen/web && npm run build --workspace @agen/api",
+    "start": "npm run start --workspace @agen/api",
+    "preview": "npm run preview --workspace @agen/web",
+    "typecheck": "npm run typecheck --workspace @agen/web && npm run typecheck --workspace @agen/api",
+    "user:create": "npm run user:create --workspace @agen/api",
+    "clean": "rimraf \"apps/*/dist\" \"apps/web/node_modules/.vite\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "rimraf": "^6.0.1"
+  }
+}

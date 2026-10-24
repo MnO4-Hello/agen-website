@@ -1,0 +1,6307 @@
+﻿/* ---------------------------------------------------------------------------
+   Theme tokens
+   Natural, flat palette built around a pale green. No gradients on purpose.
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #f2f7f0;
+  --text: #1f3d2b;
+  --muted: #55705f;
+  --line: #d9e6d6;
+  --brand: #3f7d58;
+  --brand-strong: #2f6244;
+  --pill: #dcecd7;
+  /* 表单报错与「退出登录」用。偏砖红，比纯红更贴这套低饱和绿。 */
+  --danger: #a8423a;
+  --danger-soft: rgba(168, 66, 58, 0.12);
+
+  --header-height: 4.25rem;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  color-scheme: light;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, "Noto Sans SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  /* Soft backdrop so the scene reads as a place rather than a flat page. */
+  background:
+    radial-gradient(58rem 40rem at 16% 6%, rgba(120, 170, 130, 0.22), transparent 70%),
+    radial-gradient(46rem 34rem at 86% 14%, rgba(200, 156, 84, 0.16), transparent 72%),
+    radial-gradient(72rem 52rem at 50% 110%, rgba(63, 125, 88, 0.18), transparent 70%),
+    linear-gradient(180deg, #f4f8f1, #e8f0e5);
+  background-attachment: fixed;
+}
+
+/* No stacking context here, so the header can sit above the leaf canvas while
+   the hero content stays below it. */
+.app-shell {
+  position: relative;
+}
+
+/* 开场播放期间把页面锁住（由 ../sections/identity.ts 切换这个类）：滚动被冻结，
+   用户既不能快进也不能跳过，动画只按本地时钟走。`position: fixed` 配合脚本写入
+   的 `top` 偏移，保证锁上 / 解锁的瞬间画面不跳。 */
+body.is-identity-locked,
+/* “我会什么？”板块播放期间同理，用另一个类名以免两个板块互相误解锁。 */
+body.is-skills-locked {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Fixed canvas: the leaves live in screen space and ignore page scroll. */
+.leaf-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  pointer-events: none;
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   Navigation bar
+--------------------------------------------------------------------------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  /* Above the fixed leaf canvas so leaves never cover the navigation. */
+  z-index: 30;
+  /* Entrance slide only; the scroll-driven fade lives on the children below. */
+  transform: translateY(-100%);
+  transition: transform 0.6s var(--ease-out);
+  /* Clicks fall through the empty parts of the bar; brand / nav re-enable. */
+  pointer-events: none;
+  /*
+   * 右上角账号位占的宽度。导航栏用 `margin-right` 把它让出来，而不是让账号位参与
+   * flex 布局——那样会把 `.site-header__nav` 的右边缘挤离容器右缘，而 nav 缩放用的
+   * 是 `transform-origin: top right`，收缩成胶囊时就会停在离角落一个账号位宽的地方。
+   *
+   * 两个值对应两种登录态：游客只有「登录 / 注册」两个短链接，占得少；
+   * 已登录是头像 + 昵称，占得多。切换有 0.35s 过渡，不会跳。
+   */
+  --account-reserve: 9.5rem;
+}
+
+.site-header[data-auth='guest'],
+.site-header[data-auth='unknown'] {
+  --account-reserve: 7rem;
+}
+
+/* The bar surface is a pseudo-element so it can dissolve on scroll while the
+   brand and nav stay put in the corners. */
+.site-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-bottom: 1px solid transparent;
+  background: rgba(242, 247, 240, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  opacity: calc(var(--header-opacity, 1) * var(--header-ready, 0));
+  transition: opacity 0.45s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  pointer-events: none;
+}
+
+.site-header.is-ready {
+  --header-ready: 1;
+  transform: none;
+}
+
+.site-header.is-scrolled::before {
+  border-bottom-color: var(--line);
+  box-shadow: 0 1px 12px rgba(31, 61, 43, 0.05);
+}
+
+/* No group opacity here: the inner wrapper must stay fully opaque so the brand
+   / nav chips survive the bar surface fading out. The entrance reveal is done
+   with `visibility` instead, which `::before` is not subject to. */
+.site-header__inner {
+  position: relative;
+  max-width: 72rem;
+  margin: 0 auto;
+  height: var(--header-height);
+  /* 左右内边距单列成变量：账号位是绝对定位的，要跟它对齐必须拿到同一个值。 */
+  --header-pad: clamp(1.25rem, 4vw, 2.5rem);
+  padding: 0 var(--header-pad);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  visibility: hidden;
+  transition: visibility 0.6s var(--ease-out);
+}
+
+.site-header.is-ready .site-header__inner {
+  visibility: visible;
+}
+
+/* Brand and nav each get a wrapper: on scroll they shrink and drift towards
+   their own top corner, which keeps the layout from reflowing. */
+.site-header__brand,
+.site-header__nav {
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+  will-change: transform, opacity, background;
+  transition: background 0.35s ease, border-color 0.35s ease,
+    box-shadow 0.35s ease, padding 0.3s ease, opacity 0.35s ease,
+    margin-right 0.35s var(--ease-out);
+}
+
+.site-header__brand {
+  transform: translate(var(--brand-shift-x, 0px), var(--brand-shift-y, 0px))
+    scale(var(--brand-scale, 1));
+  transform-origin: top left;
+}
+
+.site-header__nav {
+  transform: translate(var(--nav-shift-x, 0px), var(--nav-shift-y, 0px))
+    scale(var(--nav-scale, 1));
+  transform-origin: top right;
+  /* 永远贴住右侧（窄屏会隐藏品牌，那时容器里只剩它一个，`space-between` 会把它
+     放到左边——auto 外边距不依赖兄弟节点的数量）。 */
+  margin-left: auto;
+  /* 给右上角的账号位让位。收起成胶囊时归零，nav 右边缘回到内容右缘——
+     与加账号位之前逐像素一致，`--nav-shift-x` 的收角效果才不会错位。 */
+  margin-right: var(--account-reserve);
+}
+
+.site-header.is-collapsed .site-header__nav {
+  margin-right: 0;
+}
+
+/* Collapsed: the bar surface is gone, so brand and nav become small chips
+   pinned to their corners. They stay visible and clickable, and solidify on
+   hover / focus so navigation is still practical while the page stays
+   immersive. */
+.site-header.is-collapsed .site-header__brand,
+.site-header.is-collapsed .site-header__nav {
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  opacity: 0.92;
+}
+
+.site-header.is-collapsed .site-header__brand {
+  padding: 0.32rem 0.8rem;
+}
+
+.site-header.is-collapsed .site-header__nav {
+  padding: 0.22rem 0.4rem;
+}
+
+.site-header.is-collapsed .site-header__brand:hover,
+.site-header.is-collapsed .site-header__brand:focus-within,
+.site-header.is-collapsed .site-header__nav:hover,
+.site-header.is-collapsed .site-header__nav:focus-within {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+  opacity: 1;
+}
+
+/* The wordmark. Swapping in an <img> or a custom font later needs no layout
+   changes, since the block is sized by its own content. */
+.brand {
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1;
+  transition: color 0.25s ease;
+}
+
+.brand:hover,
+.brand:focus-visible {
+  color: var(--brand);
+}
+
+.nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Single sliding pill shared by the active link and the hovered/focused one. */
+.nav__indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--pill);
+  transition: transform 0.42s var(--ease-out), width 0.42s var(--ease-out);
+  pointer-events: none;
+}
+
+.nav__link {
+  position: relative;
+  z-index: 1;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.nav__link:hover,
+.nav__link:focus-visible {
+  color: var(--brand-strong);
+}
+
+.nav__link.is-active {
+  color: var(--brand-strong);
+  font-weight: 600;
+}
+
+/*
+ * 五个导航项 + 右上角账号位一共需要 ~40rem 才排得开。断点原本是 30rem（只考虑五个
+ * 链接），加了账号位以后 480~640px 这段会横向挤爆——`space-between` 不会压缩，
+ * 结果是导航直接压在账号位上。所以收紧规则上提到 40rem。
+ */
+@media (max-width: 40rem) {
+  .site-header__inner {
+    --header-pad: 1rem;
+    gap: 0.75rem;
+    padding-inline: 1rem;
+  }
+
+  .nav {
+    gap: 0;
+  }
+
+  .nav__link {
+    padding-inline: 0.5rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  .site-header {
+    --account-reserve: 6rem;
+  }
+
+  .site-header[data-auth='guest'],
+  .site-header[data-auth='unknown'] {
+    --account-reserve: 5.4rem;
+  }
+
+  /*
+   * 480px 以下藏掉品牌字标：五个导航项 + 品牌 + 登录/注册，这个宽度放不下第四样东西。
+   * 导航第一项就是「主页」，回首页的路没断。
+   */
+  .site-header__brand {
+    display: none;
+  }
+
+  /* 窄屏只留头像：昵称再短也会把五个导航项挤到换行。 */
+  .account__name,
+  .account__chevron {
+    display: none;
+  }
+
+  .account__link {
+    font-size: 0.82rem;
+  }
+
+  .account__separator {
+    /* 两个词挨着也分得清，省下 6px。 */
+    display: none;
+  }
+}
+
+/* 320px 级别的机器：再收一档字号与间距。 */
+@media (max-width: 22.5rem) {
+  .site-header {
+    --account-reserve: 5rem;
+  }
+
+  .site-header[data-auth='guest'],
+  .site-header[data-auth='unknown'] {
+    --account-reserve: 4.8rem;
+  }
+
+  .site-header__inner {
+    gap: 0.5rem;
+  }
+
+  .nav__link {
+    padding-inline: 0.28rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Header account slot
+
+   未登录是两个链接，已登录是头像 + 昵称 + 下拉菜单（悬停展开，见
+   components/account-entry.ts）。整块是绝对定位的，不参与 `__inner` 的 flex 布局，
+   原因见 `.site-header` 上 `--account-reserve` 的注释。
+--------------------------------------------------------------------------- */
+.site-header__account {
+  position: absolute;
+  top: 0;
+  right: var(--header-pad);
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: var(--account-reserve);
+  /* 父级是 pointer-events: none，这里必须自己打开，否则整块点不到。 */
+  pointer-events: auto;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+/* 还没问过后端「我是谁」：先不可见。顶栏此刻整体也还是 hidden 的，
+   所以正常情况下没人会看到这一帧；它只是保险。 */
+.site-header__account[data-state='unknown'] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 收起成胶囊后账号位整个消失——滚动时右上角只留导航胶囊。 */
+.site-header.is-collapsed .site-header__account {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.account {
+  /*
+   * ⚠️ 这里**不能**写 `position: relative`。
+   * 根元素同时挂着 `.site-header__account`（绝对定位）与 `.account`，两条规则同在
+   * 单类选择器的层级里，谁写在后面谁赢——这里一写 relative，账号位就回到 flex 流里，
+   * `space-between` 会把导航挤到中间去。菜单的定位祖先由 `.site-header__account`
+   * 的 `position: absolute` 提供，够用。
+   */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 100%;
+}
+
+.account--guest {
+  gap: 0.05rem;
+}
+
+.account__link {
+  padding: 0.35rem 0.3rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.account__link:hover,
+.account__link:focus-visible {
+  color: var(--brand-strong);
+}
+
+.account__separator {
+  color: var(--line);
+  font-size: 0.8rem;
+  user-select: none;
+}
+
+/* 头像：底色与字色由 JS 按昵称哈希写成行内样式（components/avatar.ts）。 */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+
+.avatar--sm {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.85rem;
+}
+
+.avatar--lg {
+  width: 3.25rem;
+  height: 3.25rem;
+  font-size: 1.35rem;
+}
+
+.avatar__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account__button {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  height: 2.6rem;
+  padding: 0.15rem 0.65rem 0.15rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  /* 触摸设备不要有 300ms 的双击缩放等待。 */
+  touch-action: manipulation;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.account__button:hover,
+.account.is-open .account__button {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 18px rgba(31, 61, 43, 0.12);
+}
+
+/* B 站那种手感：悬停时头像先放大一点，菜单跟着下来。 */
+.account__button .avatar {
+  transition: transform 0.25s var(--ease-out);
+}
+
+.account__button:hover .avatar,
+.account.is-open .account__button .avatar {
+  transform: scale(1.12);
+}
+
+.account__name {
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 小箭头用两条边画，省一个 SVG。 */
+.account__chevron {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  opacity: 0.55;
+  transition: transform 0.25s var(--ease-out);
+}
+
+.account.is-open .account__chevron {
+  transform: rotate(-135deg) translate(-1px, -1px);
+}
+
+/*
+ * 菜单。
+ *
+ * `padding-top` 是**透明桥**：视觉上的 8px 间隙画在 padding 里，那块区域仍属于
+ * `.account`，指针从头像斜着移向菜单时不会离开元素、也就不会触发 pointerleave。
+ * 光靠 JS 的关闭延迟是不够稳的（快速移动时事件顺序会变）。
+ */
+.account__menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1;
+  padding-top: 0.5rem;
+  width: max-content;
+  min-width: 12rem;
+  max-width: min(17rem, calc(100vw - 2rem));
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s var(--ease-out),
+    visibility 0s linear 0.18s;
+}
+
+.account.is-open .account__menu {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+.account__panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.45rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 1rem;
+  background: rgba(248, 251, 246, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 18px 40px rgba(31, 61, 43, 0.18);
+}
+
+.account__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem 0.55rem;
+}
+
+.account__meta-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.account__role {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--brand-strong);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+.account__meta-user {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.account__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.account__item:hover,
+.account__item:focus-visible {
+  background: var(--pill);
+  color: var(--brand-strong);
+}
+
+.account__item--danger {
+  color: var(--danger);
+}
+
+.account__item--danger:hover,
+.account__item--danger:focus-visible {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.account__divider {
+  height: 1px;
+  margin: 0.3rem 0.4rem;
+  background: var(--line);
+}
+
+/* ---------------------------------------------------------------------------
+   Home page
+--------------------------------------------------------------------------- */
+.home {
+  min-height: calc(100vh - var(--header-height));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(3rem, 12vh, 8rem) clamp(1.25rem, 4vw, 2.5rem);
+  text-align: center;
+}
+
+.hero {
+  text-align: center;
+  max-width: 42rem;
+  /* The leaves are drawn above the page, so the hero lines up beneath them. */
+  position: relative;
+  z-index: 1;
+  /* Scroll fade lives here, on the un-animated container: the heading's
+     entrance animation would otherwise clamp its own opacity to 1. */
+  opacity: var(--hero-fade, 1);
+}
+
+.hero__title-stage {
+  position: relative;
+  display: inline-block;
+  /* Shared 3D perspective; the heading rotates inside it on scroll. */
+  perspective: 26rem;
+  margin-bottom: 0.25rem;
+  opacity: 0;
+}
+
+/* Entrance uses a one-shot animation on the wrapper, so the heading keeps its
+   scroll transform transition-free and stays perfectly in step with scroll. */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero__title,
+.hero__title-shadow {
+  margin: 0;
+  font-family: inherit;
+  font-size: clamp(3rem, 12vw, 5.5rem);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  /* Offsets the trailing letter-spacing so the pair stays optically centred. */
+  text-indent: 0.16em;
+  line-height: 1.12;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.hero__title {
+  position: relative;
+  z-index: 2;
+  color: #f8fbf4;
+  transform-style: preserve-3d;
+  /* Pivot near the baseline so the plate tips forward as it descends. */
+  transform-origin: 50% 86%;
+  transform: rotateX(var(--hero-tilt, 9deg)) scale(var(--hero-scale, 1))
+    translateY(var(--hero-shift, 0px));
+  /* Stacked highlights + shadows fake the extruded depth of the glyphs. */
+  text-shadow:
+    0 1px 0 #e7f0e0,
+    0 2px 0 #dde9d5,
+    0 3px 0 #d2e1ca,
+    0 4px 0 #c7dabf,
+    0 5px 0 #bcd3b3,
+    0 6px 0 #b1cca8,
+    0 7px 0 #a6c59c,
+    0 8px 0 #9bbe91,
+    0 10px 0 #93b78a,
+    0 12px 0 #86ad7e,
+    0 16px 22px rgba(31, 61, 43, 0.3);
+}
+
+/* Blurred, offset copy behind the heading for an extra sense of volume. Its
+   offset grows on scroll, so the two layers separate in depth like real
+   parallax. */
+.hero__title-shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  color: rgba(47, 98, 68, 0.16);
+  filter: blur(7px);
+  transform: translate3d(0, var(--hero-depth, 16px), -60px) scale(1.02);
+  text-shadow: none;
+}
+
+.hero__tagline,
+.hero__ground {
+  /* Entrance: staggered fade-up, triggered by `is-ready` on the page shell. */
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.7s ease, transform 0.7s var(--ease-out);
+}
+
+.is-ready .hero__title-stage {
+  animation: hero-rise 0.7s var(--ease-out) 0.1s both;
+}
+
+.is-ready .hero__title-shadow {
+  animation: hero-fade 0.7s ease 0.24s both;
+}
+
+.is-ready .hero__tagline {
+  transition-delay: 0.3s;
+}
+
+.is-ready .hero__ground {
+  transition-delay: 0.46s;
+}
+
+.is-ready .hero__tagline,
+.is-ready .hero__ground {
+  opacity: 1;
+  transform: none;
+}
+
+/* Fades the blurred backing copy up without touching its offset transform. */
+@keyframes hero-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.85;
+  }
+}
+
+.hero__tagline {
+  margin: 1rem 0 0;
+  font-size: clamp(0.95rem, 2.5vw, 1.0625rem);
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+/* The ground plate: a thin slab the leaves land on, set below the title. */
+.hero__ground {
+  position: relative;
+  width: min(38rem, 84vw);
+  height: 1.15rem;
+  margin: 2.75rem auto 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d5e4cf, #b7cdad);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 10px 18px rgba(31, 61, 43, 0.18);
+}
+
+.hero__hairline {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 72px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(47, 98, 68, 0.28);
+  transform: translate(-50%, -50%);
+}
+
+/* ---------------------------------------------------------------------------
+   "我是谁？" section
+   A sticky pane whose opening is a local timeline: once the pane is up it plays
+   through on its own — a blank beat, the typewritten title, the portrait
+   assembling from particles that flip into the photo, the greeting, and the
+   blast that scatters the paragraph before it springs back.
+   Every scene variable here is written by ../sections/identity.ts.
+--------------------------------------------------------------------------- */
+.identity {
+  position: relative;
+  /* One screen for the pinned pane, plus a short runway that both absorbs any
+     overshoot before the scroll locks and gives the pane somewhere to sink away
+     once the opening has played out. */
+  height: 140vh;
+  --act-sink: 0;
+}
+
+.identity__sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  /* The pane sinks away once the whole scene has played out. */
+  transform: translateY(calc(var(--act-sink) * 13vh))
+    scale(calc(1 - var(--act-sink) * 0.06));
+  opacity: calc(1 - var(--act-sink) * 0.96);
+  will-change: transform, opacity;
+}
+
+.identity__panel {
+  position: relative;
+  width: min(74rem, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(1rem, 2.6vw, 2rem);
+}
+
+/* -- heading (typewriter) -------------------------------------------------- */
+
+.identity__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.identity__title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  font-size: clamp(2.4rem, 9vw, 5.5rem);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: 0.02em;
+  color: var(--brand-strong);
+}
+
+.identity__title-glyph {
+  display: inline-block;
+  /* Typed in one character at a time, each landing with a small rise. */
+  opacity: 0;
+  transform: translateY(0.18em) scale(0.94);
+  transition: opacity 0.16s ease, transform 0.24s var(--ease-out);
+}
+
+.identity__title-glyph.is-shown {
+  opacity: 1;
+  transform: none;
+}
+
+/* The character currently being struck flares briefly. */
+.identity__title-glyph.is-typing {
+  color: var(--brand);
+  text-shadow: 0 0 20px rgba(63, 125, 88, 0.45);
+}
+
+/* Blinking caret. It lives *inside* the heading so it inherits the display
+   font size (as a child of the header it would inherit the body size and come
+   out tiny), and it is moved forward with the typing so it always trails the
+   character that was just struck. */
+.identity__caret {
+  display: inline-block;
+  width: 0.075em;
+  height: 0.86em;
+  margin-left: 0.1em;
+  flex: none;
+  align-self: center;
+  background: var(--brand);
+  opacity: 0;
+}
+
+.identity__caret.is-typing {
+  animation: caret-blink 0.7s steps(1, end) infinite;
+}
+
+/* Once the line is finished the caret parks after the last character and holds
+   steady, then fades out when the heading hands over to the portrait. */
+.identity__caret.is-holding {
+  opacity: 1;
+}
+
+.identity__caret.is-gone {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+@keyframes caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.identity__heading-a11y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -- body ------------------------------------------------------------------ */
+
+/* The panel is taller than its content so the portrait has room to assemble
+   without pushing the paragraph around. */
+.identity__body {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: clamp(1.25rem, 3.5vw, 3rem);
+  min-height: 60vh;
+}
+
+.identity__portrait {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  align-items: flex-start;
+  /* The caption arrives with the photograph, once the blur has cleared. */
+  opacity: var(--reveal, 0);
+}
+
+.identity__frame {
+  position: relative;
+  width: 100%;
+  /* Sized from the block so the portrait never outgrows its space, and big
+     enough that the blocks land on a comfortable pixel grid. */
+  max-width: min(25rem, 100%, 40vh);
+  aspect-ratio: 1 / 1;
+  border-radius: clamp(1.1rem, 2.6vw, 2rem);
+  /* No background and no clip: the particles assemble over empty space, and the
+     photograph fades in underneath them during the blur. */
+}
+
+/* The photograph is the ground truth for the reveal: the animated pixels sit on
+   top of it and blur away to expose it. Its corner radius matches the frame's,
+   expressed in px so the canvas can draw the exact same shape. */
+.identity__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  border-radius: inherit;
+  opacity: 1;
+}
+
+.identity__caption {
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  opacity: 0.9;
+}
+
+/* -- full-viewport layers -------------------------------------------------- */
+
+/* Holds the greeting close so it never pokes into the panels around it. */
+.identity__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.identity__greeting {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The particles are drawn on the viewport, not inside the frame: that is what
+   lets them fly in from beyond the frame's edges without being clipped. */
+.identity__particles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  pointer-events: none;
+  display: block;
+  /* Retired by ../sections/identity.ts once the photo can stand on its own, so
+     nothing is left frozen over the page when this section scrolls away. */
+  transition: opacity 0.35s linear;
+}
+
+/* -- paragraph ------------------------------------------------------------- */
+
+.identity__bio {
+  position: relative;
+  min-width: 0;
+}
+
+.identity__text {
+  margin: 0;
+  font-size: clamp(0.82rem, 1.35vw, 0.98rem);
+  line-height: 1.9;
+  letter-spacing: 0.02em;
+  color: #3a5a48;
+}
+
+/* Once the animated twin takes over, the real paragraph is hidden but keeps its
+   box, so the canvas keeps the exact same layout. Hiding it (rather than
+   painting over it) means the two copies can never show through each other.
+   If the effects never start, `is-live` is absent and the real text stays. */
+.identity.is-live .identity__text {
+  visibility: hidden;
+}
+
+/* Larger than the text block, so scattered characters have somewhere to go.
+   The margin has to exceed the engine's maxOffset, or a blasted character would
+   be clipped at the edge of this canvas. */
+.identity__text-stage {
+  position: absolute;
+  inset: -4.75rem;
+  visibility: hidden;
+  opacity: 0;
+}
+
+.identity.is-live .identity__text-stage {
+  visibility: visible;
+  opacity: 1;
+}
+
+.identity__text-canvas,
+.identity__greeting {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* The paragraph canvas stays hidden until the greeting has been typed: only then
+   does it exist on screen, already collapsed into a clump behind the words. The
+   `is-text-on` class is toggled by ../sections/identity.ts. */
+.identity__text-canvas {
+  opacity: 0;
+  transition: opacity 0.25s linear;
+}
+
+.identity.is-text-on .identity__text-canvas {
+  opacity: 1;
+}
+
+.identity__greeting {
+  pointer-events: none;
+}
+
+/* -- hint ------------------------------------------------------------------ */
+
+.identity__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.28em;
+  color: var(--muted);
+  opacity: calc(0.55 * (1 - var(--act-sink)));
+}
+
+/* -- skip button ----------------------------------------------------------- */
+
+/* 开场播放期间浮在右下角的胶囊按钮。只在播放态加上 `.is-visible`（由
+   ../sections/identity.ts 切换），点击时移除这个类，于是按钮自己淡出消失。
+   配色刻意和「收起态的胶囊导航栏」用同一套（见 .site-header.is-collapsed 的
+   __brand / __nav）：半透明浅底 + 描边 + 模糊 + 投影，落在浅绿页面上像同一种材质。 */
+.identity__skip {
+  position: fixed;
+  right: clamp(1rem, 4vw, 2.5rem);
+  bottom: clamp(1rem, 4vw, 2.5rem);
+  /* 高于粒子层（4）与枫叶层（5），低于导航栏（30）。 */
+  z-index: 20;
+  margin: 0;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  opacity: 0;
+  transform: translateY(0.6rem);
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease-out), transform 0.28s var(--ease-out),
+    background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.identity__skip.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* 和导航胶囊的 hover 固化态一致：底色提亮、描边转品牌色、投影加深。 */
+.identity__skip:hover {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+}
+
+@media (max-width: 60rem) {
+  .identity__body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(1rem, 3vw, 1.5rem);
+    justify-items: center;
+    min-height: 0;
+  }
+
+  .identity__frame {
+    width: min(15rem, 46vw);
+    max-width: none;
+  }
+
+  .identity__portrait {
+    align-items: center;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   "我会什么？" section
+   沿用整站的浅绿底（不另起深色）：标题自上落下；左侧先自绘出一张牌的轮廓，
+   再由这一张牌散成五张扇形叠放的卡牌；右侧线框里粒子团汇聚成牌面，下方提示
+   「请选择卡片」。所有场景变量由 ../sections/skills.ts 写入。
+--------------------------------------------------------------------------- */
+.skills {
+  position: relative;
+  /* 一屏钉住播放 + 一段下沉让位的余量。 */
+  height: 200vh;
+  --act-sink: 0;
+  /* 牌的尺寸：左右两个框与卡牌共用，改这一个值就能整体放大 / 缩小。
+     上限偏大（桌面上一张牌接近左侧栏的一半宽），20vw 这一档保证窄一些的
+     桌面下扇面 + 抽出的牌也不会顶出可视区。 */
+  --card-w: clamp(8.5rem, 20vw, 15.5rem);
+  --card-h: calc(var(--card-w) / 0.69);
+  /* 圆角旋钮：卡牌、牌面、左框、右框共用；右框在 .skills__frame--swarm 里覆盖。 */
+  --frame-radius: 12px;
+  color: var(--text);
+}
+
+.skills__sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  transform: translateY(calc(var(--act-sink) * 13vh)) scale(calc(1 - var(--act-sink) * 0.06));
+  opacity: calc(1 - var(--act-sink) * 0.96);
+  will-change: transform, opacity;
+}
+
+/* 全屏光球：相对板块定位、跟着板块滚动，随板块本身进退，不浮在别的板块之上。 */
+.skills__orb-host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.6s linear;
+}
+
+.skills.is-retiring .skills__orb-host {
+  opacity: 0;
+}
+
+.orb-canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+.skills__panel {
+  position: relative;
+  width: min(80rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.25rem, 3.2vw, 2.5rem);
+}
+
+/* -- 标题 ------------------------------------------------------------------ */
+
+.skills__title {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  font-size: clamp(2rem, 6.5vw, 4.2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  color: var(--brand-strong);
+  /* 由 skills.ts 写入：整块从上方落下。 */
+  transform: translateY(var(--title-drop, 62vh));
+  opacity: var(--title-fade, 0.15);
+}
+
+.skills__title-glyph {
+  display: inline-block;
+  transform: translateY(var(--glyph-lift, 0));
+  transition: transform 0.2s var(--ease-out);
+}
+
+/* -- 左右分栏 -------------------------------------------------------------- */
+
+.skills__stage {
+  display: grid;
+  /* 右栏略宽：16:9 的右框要够大，左栏只留扇面需要的宽度。 */
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+  align-items: stretch;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  min-height: min(58vh, 31rem);
+}
+
+.skills__panel-side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.skills__panel-side--cards {
+  justify-content: center;
+  align-items: center;
+  /* 命中判定由 skills.ts 按「牌的静止位置」自己算，所以指针事件挂在容器上，
+     牌本身不吃事件（否则抽出后牌会跟着指针跑，命中区一起漂移）。 */
+  cursor: pointer;
+}
+
+.skills__panel-side--swarm {
+  justify-content: center;
+  align-items: center;
+  gap: clamp(1rem, 2.4vw, 1.75rem);
+}
+
+/* -- 线框：只由四条「会自己长出来」的边组成，静态时完全不可见 -----------------
+   关键点：框上没有静态 border / background。四条边各自从 0 长度延伸，所以在
+   描边开始之前，屏幕上根本看不出框的边界在哪里。 */
+
+.skills__frame {
+  position: relative;
+  /* 圆角由 `.skills` 上的 `--frame-radius` 统一给（右框自己覆盖成 16px）。填充层、
+     画布宿主和 SVG 描边都读同一个变量——描边半径由 ../sections/skills.ts 算出来，
+     外沿正好和填充层重合。 */
+  border-radius: var(--frame-radius);
+  /* 描完之后卡面淡入的进度。 */
+  --frame-fill: 0;
+}
+
+/* 描边本体：一张铺满框的 SVG，里面一个带圆角的 <rect>。路径长度与
+   `stroke-dashoffset` 都由 ../sections/skills.ts 写入，笔画就从左上角顺时针长出来。 */
+.skills__frame-outline {
+  position: absolute;
+  inset: 0;
+  /* 笔画外沿正好压在框边上，留 overflow: visible 免得抗锯齿被裁。 */
+  overflow: visible;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.skills__frame-stroke {
+  fill: none;
+  stroke: var(--brand);
+  stroke-width: 2px;
+  /* 还没量到真周长时的哨兵（此刻 rect 的宽高还是 0，本来也画不出来）。 */
+  stroke-dasharray: 100000;
+  stroke-dashoffset: 100000;
+}
+
+/* 左框：与一张牌同尺寸，就摆在牌堆的位置上——所以它「画完就是第一张牌」。
+   中心略偏左（47%），给右侧 16:9 的大框让出一点呼吸。 */
+.skills__frame--cards {
+  position: absolute;
+  left: 47%;
+  top: 50%;
+  width: var(--card-w);
+  height: var(--card-h);
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+/* 右框：16:9 横屏，尽量吃满右栏（上限 46rem）。刻意不裁切——填充层的阴影要画
+   到框外，靠它托出立体感；画布自己带圆角裁切，粒子不会溢出圆角。 */
+.skills__frame--swarm {
+  position: relative;
+  width: min(100%, 46rem);
+  aspect-ratio: 16 / 9;
+  /* 比卡牌更圆一点的角：这个框够大，12px 显得太方。 */
+  --frame-radius: 16px;
+  z-index: 1;
+}
+
+/* 描完之后淡入的卡面：让「框」在牌堆出现之前先变成一张牌。它和 .skills__card-face
+   是同一套观感，所以随后散开的五张牌和它之间是无缝的。 */
+.skills__frame-skin {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--frame-radius);
+  background: linear-gradient(158deg, #ffffff 0%, #f7fbf4 55%, #eef5ea 100%);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 30px rgba(31, 61, 43, 0.14);
+  opacity: var(--frame-fill);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* -- 卡牌扇形 -------------------------------------------------------------- */
+
+/* 牌堆：与左框完全重叠（同尺寸、同中心）。展开前五张牌叠在一处，看起来就是
+   刚刚画出来的那张牌。 */
+.skills__deck {
+  position: absolute;
+  left: 47%;
+  top: 50%;
+  width: var(--card-w);
+  height: var(--card-h);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  z-index: 3;
+}
+
+.skills__card {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* 支点落在牌底下方：旋转才像手里摊开的牌，而不是贴着中线各自打转。 */
+  transform-origin: 50% 118%;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+  /* transform 由 ../sections/skills.ts 每帧写入。这里默认**不挂过渡**：动画
+     期间逐帧写入 + CSS 过渡会互相打架，把牌拖得又黏又慢。等时间线跑完加上
+     .is-settled 再打开补间，抽牌才是丝滑的。 */
+  transition: none;
+  will-change: transform;
+}
+
+.skills.is-settled .skills__card {
+  /* 末端轻微回弹的缓动，抽出来的时候更有手感。 */
+  transition: transform 0.46s cubic-bezier(0.34, 1.5, 0.55, 1);
+}
+
+.skills.is-reduced .skills__deck {
+  opacity: 1;
+}
+
+.skills__card-face {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--frame-radius);
+  /* 和整站一致的浅色卡片：白底 + 极淡的绿，落在浅绿页面上很干净。 */
+  background: linear-gradient(158deg, #ffffff 0%, #f7fbf4 55%, #eef5ea 100%);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 30px rgba(31, 61, 43, 0.14), 0 2px 6px rgba(31, 61, 43, 0.08);
+  transition: border-color 0.34s var(--ease-out), box-shadow 0.4s var(--ease-out);
+}
+
+/* 牌面内圈细线，像一张真正的牌，而不是一块白板。 */
+.skills__card-face::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(63, 125, 88, 0.16);
+}
+
+/* 抽出时提亮边框、加深投影。选中状态由 ../sections/skills.ts 统一判定后加
+   `.is-picked`——不用 :hover，因为牌抽出后会从指针下滑开，:hover 会跟实际
+   选中的牌对不上。 */
+.skills__card.is-picked .skills__card-face {
+  border-color: var(--brand);
+  box-shadow: 0 26px 52px rgba(31, 61, 43, 0.22), 0 0 0 1px var(--brand);
+}
+
+.skills__card:focus-visible {
+  outline: none;
+}
+
+/* -- 卡面内容（目前只有第一张卡有内容，其余仍是空白牌面） ---------------------
+   卡片尺寸由 `.skills` 上的 `--card-w` 定（桌面 1440 下 248×359），正文按这个
+   尺寸配字号：198px 可用宽 ÷ 11.8px ≈ 每行 16 字，105 字约 6.4 行。 */
+
+.skills__card-body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1.15rem 1.05rem;
+  /* 卡高是固定的：兜一层裁切，正文再长也不会撑破牌面。 */
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  /* 选中判定走 pointermove，避免拖选文字把命中搞乱。 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.skills__card-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: var(--brand-strong);
+}
+
+/* 标题下的一道品牌色短线，给牌面一个视觉锚点。 */
+.skills__card-rule {
+  display: block;
+  width: 1.6rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--brand);
+}
+
+.skills__card-blurb {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* -- 钉住后出现的「放下」胶囊 ------------------------------------------------
+   幽灵层是 `.skills__deck` 的兄弟、与牌同尺寸同支点，transform 由 skills.ts 与牌
+   同步写入（writeGhost），所以永远严丝合缝压在牌上，胶囊自动跟着抽出 / 缩放 / 变
+   尺寸走。**故意不挂 transform 过渡**：钉住那一刻牌已经抽出到位，一次定位即可，
+   挂了反而会看到胶囊从牌堆中心飞出来。 */
+.skills__capsule-ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 50% 118%;
+  transform: translate3d(0, 0, 0) rotate(0deg);
+  /* visibility 比 opacity 彻底：没钉住时连命中测试和 Tab 都一起排掉。 */
+  visibility: hidden;
+  opacity: 0;
+}
+
+.skills__capsule-ghost.is-shown {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* 胶囊本体：浅色毛玻璃 + 品牌绿描边，落在卡面浅底上读得清又不抢戏。 */
+.skills__capsule {
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  pointer-events: auto;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.42rem 0.9rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(31, 61, 43, 0.18);
+  opacity: 0;
+  transform: translateY(0.4rem);
+  transition: opacity 0.28s var(--ease-out), transform 0.28s var(--ease-out),
+    background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.skills__capsule-ghost.is-shown .skills__capsule {
+  opacity: 1;
+  transform: none;
+}
+
+.skills__capsule:hover {
+  background: #ffffff;
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.24);
+}
+
+/* -- 右侧：浅绿填充 + 粒子团 ------------------------------------------------ */
+
+.skills__swarm-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--frame-radius);
+  /* 底色与页面背景同色（不透明）：框体不再靠颜色区分，只留描边 + 投影。
+     面用的是 body 那层线性底的同一组色，落在页面上才会「隐形」。 */
+  background: linear-gradient(180deg, #f4f8f1 0%, #e8f0e5 100%);
+  /* 投影挂在这一层上，随 `--frame-fill` 一起淡入——描边之前不会先露出一个框。 */
+  box-shadow: 0 22px 48px rgba(31, 61, 43, 0.18), 0 6px 16px rgba(31, 61, 43, 0.12);
+  opacity: var(--frame-fill);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.skills__swarm-canvas-host {
+  position: absolute;
+  inset: 0;
+  /* 框不再裁切（见 .skills__frame--swarm），圆角改由画布宿主自己收。 */
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.swarm-canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+
+/* 提示语在右框下方。 */
+.skills__pick {
+  text-align: center;
+  transform: translateY(calc((1 - var(--hint-in, 0)) * 1.4rem));
+  opacity: var(--hint-in, 0);
+}
+
+.skills__pick-title {
+  margin: 0;
+  font-size: clamp(1rem, 2.2vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  color: var(--brand-strong);
+}
+
+.skills__pick-sub {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+/* -- 右侧：多阶段对比（选中第一张卡时替换粒子团） ----------------------------
+   三层同尺寸的图完全重叠，用 clip-path 各露出一段（左→右分别是 白模 / 初步渲染 /
+   后期处理），两根细线切在边界上、可各自拖动。几何只有“比例”两个数字，
+   由 ../scene/image-compare.ts 每帧写进 clip-path / left——所以这两者**不挂**
+   CSS 过渡，只有根元素的 opacity 有（且仅在 .is-settled 之后打开）。 */
+
+.compare {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  /* 图片不吃指针；只有两条分割线在 .is-visible 下才接管事件。 */
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  /* 高于 swarm 画布宿主（z 2），低于 SVG 描边（z 4）：描边始终压在图片之上。 */
+  z-index: 3;
+}
+
+.compare__layer {
+  position: absolute;
+  inset: 0;
+  will-change: clip-path;
+}
+
+.compare__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 素材是 1920×1080，与右框同为 16:9，cover 只是为了兜住极端比例下的边界。 */
+  object-fit: cover;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.compare__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 命中区做宽（28px），视觉上的线只有 2px，细线才好抓。 */
+  width: 28px;
+  margin-left: -14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  /* 触屏拖动不要顺手把页面滚起来。 */
+  touch-action: none;
+  pointer-events: none;
+  background: transparent;
+}
+
+.compare.is-visible .compare__line {
+  pointer-events: auto;
+}
+
+.compare__line-hit {
+  position: absolute;
+  inset: 0;
+}
+
+/* 白色细线 + 深色描边：任何底图（白模的浅灰、后期的暗部）上都读得出来。 */
+.compare__line-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(31, 61, 43, 0.28), 0 0 6px rgba(0, 0, 0, 0.28);
+}
+
+/* 圆形手柄，里面两道竖线暗示“可左右拖”。 */
+.compare__line-grip {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(31, 61, 43, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.compare__line-grip::before,
+.compare__line-grip::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 1.5px;
+  background: var(--brand-strong);
+}
+
+.compare__line-grip::before {
+  left: 7px;
+}
+
+.compare__line-grip::after {
+  right: 7px;
+}
+
+.compare__line:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* -- 右侧：代码打字机（选中「编程」卡时替换粒子团） --------------------------
+   一个深色代码编辑器的示意：顶部 chrome（三个交通灯 + 语言徽标 + 文件名）+
+   带行号的代码区。文本由 ../scene/code-typing.ts 逐字符填进去——新字符插在光标
+   （.code-typing__caret）之前，同色字符拼接在同一个文本节点上。既然是逐帧写，
+   这里**不挂任何过渡**；只有根元素 opacity 有，且仅在 .is-settled 之后打开。
+   过渡与 reduced-motion 都写在本块内，不动共享选择器。 */
+
+.code-typing {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  display: flex;
+  flex-direction: column;
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', ui-monospace, 'SFMono-Regular',
+    Menlo, Consolas, 'Courier New', monospace;
+}
+
+.code-typing__chrome {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.85rem;
+  background: #252526;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.code-typing__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.code-typing__dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+}
+
+.code-typing__dot:nth-child(1) {
+  background: #ff5f56;
+}
+
+.code-typing__dot:nth-child(2) {
+  background: #ffbd2e;
+}
+
+.code-typing__dot:nth-child(3) {
+  background: #27c93f;
+}
+
+.code-typing__badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #4ec9b0;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(78, 201, 176, 0.12);
+  border: 1px solid rgba(78, 201, 176, 0.32);
+}
+
+.code-typing__file {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: #8a8a8a;
+}
+
+.code-typing__code {
+  flex: 1;
+  min-height: 0;
+  padding: clamp(0.6rem, 2vw, 1.1rem) clamp(0.85rem, 2.4vw, 1.5rem);
+  overflow: hidden;
+  font-size: clamp(0.62rem, 1.55vw, 0.95rem);
+  line-height: 1.7;
+  white-space: pre;
+  -webkit-font-smoothing: antialiased;
+}
+
+.code-typing__line {
+  display: flex;
+  align-items: baseline;
+  gap: clamp(0.6rem, 2vw, 1.2rem);
+  min-height: 1.7em;
+  white-space: pre;
+}
+
+.code-typing__lineno {
+  flex: none;
+  min-width: 2ch;
+  text-align: right;
+  color: #5a5a60;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 还没敲到的行整行隐形；第一颗字符落下时摘掉 .is-pending。 */
+.code-typing__line.is-pending .code-typing__lineno,
+.code-typing__line.is-pending .code-typing__text {
+  opacity: 0;
+}
+
+.code-typing__text {
+  white-space: pre;
+}
+
+/* VS Code Dark+ 配色。 */
+.code-typing__tok--kw {
+  color: #569cd6;
+}
+
+.code-typing__tok--str {
+  color: #ce9178;
+}
+
+.code-typing__tok--num {
+  color: #b5cea8;
+}
+
+.code-typing__tok--fn {
+  color: #dcdcaa;
+}
+
+.code-typing__tok--typ {
+  color: #4ec9b0;
+}
+
+.code-typing__tok--com {
+  color: #6a9955;
+  font-style: italic;
+}
+
+.code-typing__tok--pun,
+.code-typing__tok--plain {
+  color: #d4d4d4;
+}
+
+.code-typing__caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin: 0 -1px;
+  transform: translateY(0.16em);
+  background: #aeafad;
+  animation: code-typing-blink 1.05s steps(1) infinite;
+}
+
+@keyframes code-typing-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.skills.is-settled .code-typing {
+  transition: opacity 0.42s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skills.is-settled .code-typing,
+  .skills .code-typing {
+    transition: none;
+  }
+
+  .code-typing__caret {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* -- 右侧：Office 办公场景（选中第 5 张卡时替换粒子团） ----------------------
+   纯代码仿真的 Word / Excel / PowerPoint 三个界面叠放、依次淡入淡出循环。
+   三视图的不透明度由根上的 --o-word / --o-excel / --o-ppt 派生（脚本每帧写这三个
+   变量），所以**视图自身不挂过渡**；只有根 .office-suite 的 opacity 在 .is-settled
+   之后才打开过渡。过渡与 reduced-motion 都写在本块内，不动共享选择器
+   （与 .code-typing 同一条纪律）。 */
+
+.office-suite {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #f3f4f6 0%, #e9ecef 100%);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+}
+
+/* 顶栏：三颗交通灯 + 应用徽标 + 文件名（靠右）。 */
+.office-suite__chrome {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(255, 255, 255, 0.74);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.office-suite__lights {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.office-suite__light {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+}
+
+.office-suite__light:nth-child(1) {
+  background: #ff5f56;
+}
+
+.office-suite__light:nth-child(2) {
+  background: #ffbd2e;
+}
+
+.office-suite__light:nth-child(3) {
+  background: #27c93f;
+}
+
+.office-suite__badge {
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  color: #2f3542;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.office-suite__file {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+
+/* 舞台：三视图叠放的公共基准。 */
+.office-suite__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 三个视图叠放：opacity / 位移全由根上的 --o-* 派生（逐帧写，禁止过渡）。 */
+.office-suite__view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+.office-suite__view--word {
+  opacity: var(--o-word, 0);
+  transform: translateY(calc((1 - var(--o-word, 0)) * 1.4%));
+}
+
+.office-suite__view--excel {
+  opacity: var(--o-excel, 0);
+  transform: translateY(calc((1 - var(--o-excel, 0)) * 1.4%));
+}
+
+.office-suite__view--ppt {
+  opacity: var(--o-ppt, 0);
+  transform: translateY(calc((1 - var(--o-ppt, 0)) * 1.4%));
+}
+
+/* 功能区：各视图一个品牌色，7 个半透明按钮块暗示按钮。 */
+.office-suite__ribbon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1.6%;
+  padding: 0.5rem 0.9rem;
+}
+
+.office-suite__view--word .office-suite__ribbon {
+  background: #2b579a;
+}
+
+.office-suite__view--excel .office-suite__ribbon {
+  background: #217346;
+}
+
+.office-suite__view--ppt .office-suite__ribbon {
+  background: #d24726;
+}
+
+.office-suite__ribbon-btn {
+  width: 6%;
+  max-width: 34px;
+  height: 0.66rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Word：白纸文档页 */
+.office-suite__page {
+  flex: 1;
+  min-height: 0;
+  width: 72%;
+  max-width: 30rem;
+  margin: 3.2% auto;
+  padding: 5% 6%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+}
+
+.office-suite__doc-title {
+  color: #1f2a44;
+  font-size: clamp(0.7rem, 1.85vw, 1rem);
+  font-weight: 700;
+  text-align: center;
+}
+
+.office-suite__rule {
+  width: 34%;
+  height: 2px;
+  margin: 0 auto 0.35rem;
+  border-radius: 2px;
+  background: #2b579a;
+}
+
+.office-suite__line {
+  height: 0.42rem;
+  border-radius: 3px;
+  background: #dfe3ea;
+}
+
+.office-suite__bullet {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.office-suite__bullet-dot {
+  flex: none;
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 50%;
+  background: #2b579a;
+}
+
+.office-suite__bullet-bar {
+  height: 0.42rem;
+  border-radius: 3px;
+  background: #e6e9ef;
+}
+
+/* Excel：网格表 + 条形图 */
+.office-suite__sheet {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 3%;
+  padding: 3.2% 4%;
+}
+
+.office-suite__grid {
+  flex: 1.1;
+  display: grid;
+  grid-template-columns: 0.55fr 1.3fr 1fr 1fr;
+  grid-auto-rows: 1fr;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #c9d3cb;
+  border-radius: 3px;
+}
+
+.office-suite__cell {
+  display: flex;
+  align-items: center;
+  padding: 0 0.4rem;
+  overflow: hidden;
+  color: #24402f;
+  font-size: clamp(0.46rem, 1.25vw, 0.68rem);
+  white-space: nowrap;
+  border-right: 1px solid #dce4de;
+  border-bottom: 1px solid #dce4de;
+}
+
+.office-suite__cell--head {
+  justify-content: center;
+  color: #217346;
+  font-weight: 600;
+  background: #e8f1ea;
+}
+
+.office-suite__chart {
+  flex: 0.9;
+  display: flex;
+  align-items: flex-end;
+  gap: 6%;
+  padding: 5% 3% 3%;
+  background: #ffffff;
+  border: 1px solid #c9d3cb;
+  border-radius: 3px;
+}
+
+.office-suite__bar {
+  flex: 1;
+  border-radius: 3px 3px 0 0;
+  background: linear-gradient(180deg, #43a06a 0%, #217346 100%);
+}
+
+/* PowerPoint：幻灯片（标题 + 项目符号 + 图形） */
+.office-suite__slide {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 74%;
+  max-width: 31rem;
+  margin: 3.2% auto;
+  padding: 5% 6%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  overflow: hidden;
+  background: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.14);
+}
+
+.office-suite__slide-title {
+  color: #9c3016;
+  font-size: clamp(0.7rem, 1.85vw, 1rem);
+  font-weight: 700;
+}
+
+.office-suite__slide-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.office-suite__slide-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.office-suite__slide-dot {
+  flex: none;
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 50%;
+  background: #d24726;
+}
+
+.office-suite__slide-bar {
+  height: 0.46rem;
+  border-radius: 3px;
+  background: #eceff3;
+}
+
+.office-suite__slide-shape {
+  position: absolute;
+  right: 7%;
+  bottom: 8%;
+  width: 18%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #f0a58c 0%, #d24726 100%);
+}
+
+/* 底部 app 指示点（离散切换，可安全挂过渡）。 */
+.office-suite__dots {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem;
+}
+
+.office-suite__dot {
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.22);
+  transition: width 0.3s var(--ease-out), background 0.3s var(--ease-out);
+}
+
+.office-suite__dot.is-active {
+  width: 1.15rem;
+  background: #3a4750;
+}
+
+/* 淡换只在入场播完之后才带过渡（与 .code-typing 同一条纪律，本块内自带）。 */
+.skills.is-settled .office-suite {
+  transition: opacity 0.42s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skills.is-settled .office-suite,
+  .skills .office-suite {
+    transition: none;
+  }
+}
+
+/* -- 右侧：Photoshop 风格「平面设计」场景（选中第 2 张卡时替换粒子团） --------
+   深色 PS 界面的**简化示意**：顶部菜单条 + 左侧工具条 + 深色画布。画布上跑一段
+   脚本动画——画出来的指针点一下 → 拉出虚线选框 → 框内线稿灯泡从很小涨满 →
+   指针再点一下点亮；之后灯泡可点击切换亮 / 灭。
+   选框 / 灯泡 / 指针的位置尺寸**全部读 CSS 变量**（百分比），由 ../scene/ps-bulb.ts
+   逐帧写入，所以这里同样**不挂过渡**（只有根元素 opacity 有，且仅在 .is-settled
+   之后才打开）。整盏灯的明暗只由单旋钮 --lit 用 calc() 派生。 */
+
+.psbulb {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  background: linear-gradient(180deg, #2a2e35 0%, #191c21 100%);
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  /* 同 .compare：高于 swarm 画布宿主（z 2），低于 SVG 描边（z 4）。 */
+  z-index: 3;
+  --lit: 0;
+}
+
+/* 顶部菜单条：几枚小色块暗示菜单项，右侧两枚小点暗示窗口按钮。 */
+.psbulb__menubar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8%;
+  display: flex;
+  align-items: center;
+  gap: 2.2%;
+  padding: 0 3%;
+  background: rgba(0, 0, 0, 0.34);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.psbulb__menu {
+  width: 5.5%;
+  height: 22%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.psbulb__menudot {
+  width: 1.4%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* 把窗口按钮推到最右：只有紧跟最后一个菜单项的那一枚吃 auto 外边距。 */
+.psbulb__menu + .psbulb__menudot {
+  margin-left: auto;
+}
+
+.psbulb__menudot + .psbulb__menudot {
+  margin-left: 1.6%;
+}
+
+/* 左侧工具条：六枚工具，其中一枚「选中」（绿色高亮）。 */
+.psbulb__toolbox {
+  position: absolute;
+  top: 8%;
+  left: 0;
+  bottom: 0;
+  width: 9%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3.4%;
+  padding-top: 4.5%;
+  background: rgba(0, 0, 0, 0.26);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.psbulb__tool {
+  width: 56%;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.psbulb__tool.is-active {
+  background: rgba(23, 247, 0, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(23, 247, 0, 0.55);
+}
+
+/* 画布：选框 / 灯泡 / 指针的公共坐标基准（百分比都相对它解析）。 */
+.psbulb__canvas {
+  position: absolute;
+  top: 8%;
+  left: 9%;
+  right: 0;
+  bottom: 0;
+  background: #14161a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* 虚线选框：从左上角向右下角长出来（--mq-w / --mq-h 由脚本逐帧写）。 */
+.psbulb__marquee {
+  position: absolute;
+  left: var(--mq-x, 20%);
+  top: var(--mq-y, 24%);
+  width: var(--mq-w, 0%);
+  height: var(--mq-h, 0%);
+  border: 1.5px dashed rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+/* 灯泡：居中于选框——选框每帧变大，灯泡中心自动跟着走，不必 JS 重算。 */
+.psbulb__bulb {
+  position: absolute;
+  left: calc(var(--mq-x, 20%) + var(--mq-w, 0%) / 2);
+  top: calc(var(--mq-y, 24%) + var(--mq-h, 0%) / 2);
+  height: 54%;
+  width: auto;
+  aspect-ratio: 200 / 350;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  transform: translate(-50%, -50%) scale(var(--bulb-scale, 0));
+  transform-origin: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.psbulb.is-visible .psbulb__bulb {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 脚本跑完之后才接管指针——播放期间按钮不吃点击，免得和脚本抢 --lit。 */
+.psbulb.is-visible.is-settled .psbulb__bulb {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* 线稿灯泡：白描边的玻璃球体 + 螺口 + 绿色灯丝，周围一圈白色装饰射线。
+   点亮 = 球体透出半透明绿辉光 + 灯丝换成更亮更粗的绿 + 外发光。 */
+.psbulb__bulb-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* 外发光要画到 viewBox 之外，别被裁掉（与右框不裁切的既有设定一致）。 */
+  overflow: visible;
+  filter: drop-shadow(0 0 calc(var(--lit) * 2.6vmin) rgba(23, 247, 0, calc(var(--lit) * 0.7)));
+}
+
+.psbulb__outline {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.psbulb__thread {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.psbulb__glass-fill {
+  fill: #17f700;
+  fill-opacity: calc(var(--lit) * 0.22);
+  stroke: none;
+}
+
+.psbulb__filament {
+  fill: none;
+  stroke: #0f9600;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.psbulb__filament-glow {
+  fill: none;
+  stroke: #17f700;
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: var(--lit);
+}
+
+.psbulb__spark {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: calc(1 - var(--lit));
+}
+
+/* 画出来的鼠标指针：位置 / 点击缩放都由脚本写变量。 */
+.psbulb__cursor {
+  position: absolute;
+  left: var(--cx, 62%);
+  top: var(--cy, 8%);
+  width: 4.4%;
+  aspect-ratio: 1;
+  transform: translate(-16%, -8%) scale(var(--click, 1));
+  transform-origin: 16% 8%;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.psbulb__cursor-arrow {
+  fill: #ffffff;
+  stroke: #14161a;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+/* -- 右侧：「AI 创意生产」场景（选中该卡时替换粒子团） -----------------------
+   左半是「AI 对话模拟」——气泡流 + 底部输入框。脚本把一句话逐字打进输入框、
+   发出去、AI 先跳一会儿「思考中」、再逐字回复，然后进下一组，十组问答无限循环。
+   右半是「由字符拼成的 AI 图标」——画布上每一颗字符都在动，每隔一两秒整块就近
+   归位地变成下一个品牌 logo（大多数字符是品牌首字母，边缘是 `+`，零星 `#` / `*`），
+   六个之间循环；鼠标扫进右栏时字符会被一圈圈涟漪推开，指针移开涟漪就平息。
+   和 .psbulb 的深色界面不同，这里必须落在整站的浅绿底上：底色与
+   .skills__swarm-fill 同色系，字色用品牌深绿。
+   逐帧写入的只有画布内容和根元素不透明度，所以这里同样**不给根元素挂过渡**
+   （淡换只在 .skills.is-settled 之后打开）。 */
+
+.ai-lab {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--frame-radius);
+  overflow: hidden;
+  background: linear-gradient(180deg, #f4f8f1 0%, #e8f0e5 100%);
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
+  /* 同 .compare / .psbulb：高于粒子团画布宿主（z 2），低于 SVG 描边（z 4）。 */
+  z-index: 3;
+  --ai-ink: #2f6244;
+  --ai-ink-soft: rgba(47, 98, 68, 0.62);
+  --ai-line: rgba(63, 125, 88, 0.16);
+}
+
+.ai-lab__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.42fr) minmax(0, 0.58fr);
+  height: 100%;
+}
+
+/* -- 左栏：对话 -------------------------------------------------------------- */
+
+.ai-lab__chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--ai-line);
+}
+
+.ai-lab__stream {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.34rem;
+  padding: 0.7rem 0.7rem 0.2rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* 顶部的旧气泡是淡出的，而不是被硬切掉。 */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 100%);
+}
+
+.ai-lab__stream::-webkit-scrollbar {
+  display: none;
+}
+
+.ai-lab__bubble {
+  max-width: 86%;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.62rem;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ai-lab__bubble--user {
+  align-self: flex-end;
+  background: var(--brand);
+  color: #ffffff;
+  border-bottom-right-radius: 0.22rem;
+}
+
+.ai-lab__bubble--ai {
+  align-self: flex-start;
+  background: #ffffff;
+  color: var(--ai-ink);
+  border: 1px solid var(--ai-line);
+  border-bottom-left-radius: 0.22rem;
+}
+
+.ai-lab__bubble--thinking {
+  padding: 0.42rem 0.5rem;
+}
+
+/* 「思考中」的三个点，错开时间上下跳。 */
+.ai-lab__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  height: 0.62rem;
+}
+
+.ai-lab__dots span {
+  width: 0.24rem;
+  height: 0.24rem;
+  border-radius: 50%;
+  background: var(--brand);
+  animation: ai-lab-bounce 1.05s var(--ease-out) infinite;
+}
+
+.ai-lab__dots span:nth-child(2) {
+  animation-delay: 0.14s;
+}
+
+.ai-lab__dots span:nth-child(3) {
+  animation-delay: 0.28s;
+}
+
+@keyframes ai-lab-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  30% {
+    transform: translateY(-0.22rem);
+    opacity: 1;
+  }
+}
+
+/* 底部输入框：脚本往里逐字打字，不接受真实输入（整块 pointer-events: none）。 */
+.ai-lab__composer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin: 0.45rem 0.7rem 0.62rem;
+  padding: 0.34rem 0.3rem 0.34rem 0.6rem;
+  border: 1px solid var(--ai-line);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--ai-ink);
+}
+
+.ai-lab__input {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 空着时显示占位提示（input 上挂着 data-placeholder）。 */
+.ai-lab__composer.is-empty .ai-lab__input::before {
+  content: attr(data-placeholder);
+  color: var(--ai-ink-soft);
+}
+
+.ai-lab__caret {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 0.78rem;
+  background: var(--brand);
+  animation: ai-lab-blink 1s steps(1, end) infinite;
+}
+
+/* 空输入框不显示光标，让占位提示自己待着。 */
+.ai-lab__composer.is-empty .ai-lab__caret {
+  display: none;
+}
+
+@keyframes ai-lab-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* 发送键：一直推到最右。 */
+.ai-lab__send {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #ffffff;
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+/* -- 右栏：字符点阵 ---------------------------------------------------------- */
+
+.ai-lab__icons {
+  position: relative;
+  min-width: 0;
+  /* 刻意不铺网格底：整块马上会被字符点阵填满，再加一层点底只会互相打架。 */
+}
+
+/* 涟漪要跟鼠标，所以右栏在**场景露出来之后**把指针事件单独打开——根元素是
+   pointer-events: none，若在这里无条件打开，收起状态下它会凭空吃掉整片区域的
+   hover（卡牌、胶囊都在左半边，但右框上方仍然不该被一块隐形元素挡住）。
+   reduced-motion 下场景会挂上 .is-static：没有涟漪、没有指针监听，热区一并关掉。 */
+.ai-lab.is-visible:not(.is-static) .ai-lab__icons {
+  pointer-events: auto;
+  cursor: default;
+}
+
+.ai-lab__icon-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+}
+
+@media (max-width: 60rem) {
+  /* 框窄到约 480×270：对话天生是竖排的，所以**不改成上下分栏**，只收字号与内边距。 */
+  .ai-lab__grid {
+    grid-template-columns: minmax(0, 0.46fr) minmax(0, 0.54fr);
+  }
+
+  .ai-lab__stream {
+    gap: 0.28rem;
+    padding: 0.5rem 0.5rem 0.15rem;
+  }
+
+  .ai-lab__bubble {
+    padding: 0.24rem 0.42rem;
+    font-size: 0.6rem;
+  }
+
+  .ai-lab__composer {
+    margin: 0.32rem 0.5rem 0.44rem;
+    padding: 0.28rem 0.26rem 0.28rem 0.5rem;
+    font-size: 0.6rem;
+  }
+}
+
+@media (max-width: 30rem) {
+  /* 手机上再挤就只有几十像素可用，先把发送键让出来。 */
+  .ai-lab__send {
+    display: none;
+  }
+}
+
+/* 淡换只在入场播完之后才带过渡：intro 期间每帧写 opacity 不会被打断（和卡牌
+   transform 同一条纪律）。 */
+.skills.is-settled .skills__swarm-canvas-host,
+.skills.is-settled .compare,
+.skills.is-settled .psbulb,
+.skills.is-settled .ai-lab {
+  transition: opacity 0.42s var(--ease-out);
+}
+
+@media (max-width: 60rem) {
+  .skills {
+    height: 220vh;
+    /* 单列布局下牌按视口宽走，保证扇面和抽出的牌都在屏内。 */
+    --card-w: clamp(8rem, 38vw, 12rem);
+  }
+
+  .skills__stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: clamp(1.5rem, 5vw, 2.5rem);
+  }
+
+  /* 单列了，牌回到居中，不必再给右框让位。 */
+  .skills__frame--cards,
+  .skills__deck {
+    left: 50%;
+  }
+
+  .skills__frame--swarm {
+    width: min(100%, 30rem);
+  }
+
+  /* 窄屏的牌只有 142×206 上下，正文必须收字号 + 行数钳制，否则会撑破牌面。 */
+  .skills__card-body {
+    padding: 0.85rem 0.8rem;
+    gap: 0.4rem;
+  }
+
+  .skills__card-title {
+    font-size: clamp(1rem, 5vw, 1.15rem);
+  }
+
+  .skills__card-blurb {
+    font-size: 0.62rem;
+    line-height: 1.55;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 7;
+    overflow: hidden;
+  }
+
+  /* 窄屏的牌只有 ~142×206，胶囊要收小、贴角更紧，免得压到正文。 */
+  .skills__capsule {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    padding: 0.34rem 0.7rem;
+    font-size: 0.66rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Accessibility
+--------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header::before,
+  .site-header__inner,
+  .hero__tagline,
+  .hero__ground {
+    transition: none;
+  }
+
+  .nav__indicator {
+    transition: none;
+  }
+
+  /* 账号位不淡入淡出、菜单不做位移：直接出现在最终状态。 */
+  .site-header__account,
+  .account__button,
+  .account__button .avatar,
+  .account__chevron,
+  .account__menu {
+    transition: none;
+  }
+
+    /* The identity pane loses its scroll staging and shows its final state. */
+  .identity {
+    height: auto;
+  }
+
+  .identity__sticky {
+    position: static;
+    height: auto;
+    transform: none;
+    opacity: 1;
+  }
+
+  .identity__title-glyph {
+    opacity: 1;
+    transform: none;
+  }
+
+  .identity__portrait {
+    opacity: 1;
+  }
+
+  .identity__frame {
+    clip-path: none;
+  }
+
+  .identity__photo {
+    opacity: 1;
+  }
+
+  .identity__text-stage,
+  .identity__greeting-canvas,
+  .identity__caret {
+    display: none;
+  }
+
+  /* No intro to skip when the scene is static. */
+  .identity__skip {
+    display: none;
+  }
+
+  /* No scroll staging: keep the header fully present and the hero in place. */
+  .site-header,
+  .site-header.is-ready {
+    --header-ready: 1;
+    --header-opacity: 1;
+  }
+
+  /* Skip the entrance entirely; the static scene renders immediately. */
+  .is-ready .hero__title-stage {
+    animation: none;
+    opacity: 1;
+  }
+
+  .is-ready .hero__title-shadow {
+    animation: none;
+    opacity: 0.85;
+  }
+
+  /* The skills pane drops its scroll staging too: the card fan and the swarm are
+     shown at rest, and the canvases are skipped entirely (the fields are never
+     created under reduced motion). */
+  .skills {
+    height: auto;
+  }
+
+  .skills__sticky {
+    position: static;
+    height: auto;
+    transform: none;
+    opacity: 1;
+  }
+
+  .skills__orb-host {
+    display: none;
+  }
+
+  /* 静态呈现：描边直接画满（兜底，JS 那边也会写终态）；框收起，只留已经展开的牌堆。 */
+  .skills__frame {
+    --frame-fill: 1;
+  }
+
+  .skills__frame-stroke {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .skills__frame--cards {
+    opacity: 0;
+  }
+
+  .skills__deck {
+    opacity: 1;
+  }
+
+  .skills__card {
+    transition: none;
+  }
+
+  /* 胶囊不做淡入位移，钉住即显现。 */
+  .skills__capsule {
+    transition: none;
+  }
+
+  /* 对比图不做淡换（扫动动画也由 JS 直接落到静止位）。 */
+  .skills .compare,
+  .skills .psbulb,
+  .skills .ai-lab,
+  .skills__swarm-canvas-host {
+    transition: none;
+  }
+
+  /* 灯泡场景同样不做淡换（脚本由 JS 直接落到终态），并隐藏画出来的指针。 */
+  .psbulb__cursor {
+    display: none;
+  }
+
+  /* AI 场景：静态摆出一轮完整问答，去掉光标闪烁与跳动点的动画。 */
+  .ai-lab__caret {
+    display: none;
+  }
+
+  .ai-lab__dots span {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   "作品" section —— 忠实移植 wodniack.dev 的 .s-work / .s-my-way
+   结构、时间轴、缓动与关键帧时长都照搬参考站；只做两处改动：
+     ① 元素选择器 a-work / a-separator 改成类选择器 .a-work / .a-separator
+        （本站不用自定义元素，HMR 下 customElements.define 会重复注册抛错）；
+     ② 配色由参考站的红/黑映射到本站的绿（见下面的 --color-* 别名）。
+   所有进度变量（--scroll-progress / --state / --progress / --y / --size）都由
+   ../scene/*.ts 逐帧写行内样式，这里只负责读。
+--------------------------------------------------------------------------- */
+
+/* 跑马灯的「WORK」四个字母用压缩显示体。参考站的 Bigger Display 是商用字体，
+   这里换成自托管的 Archivo Narrow 700（latin 子集只有 11.8 KB，放 public/fonts）。
+   它比 system-ui 窄得多 —— 而 work-letters.ts 是「按原生字宽算幽灵份数」的
+   （total = round(视口宽 / 字宽 * 密度) + 2），所以换字体后幽灵数会自动从 ~32
+   涨到 ~50+，不需要改任何 TS。这是对齐参考站跑马灯密度的关键一步。 */
+@font-face {
+  font-family: "Archivo Narrow";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/archivo-narrow-700.woff2") format("woff2");
+  /* 只声明 latin：CJK 字符走字体栈的下一档，避免拿拉丁字体去渲染中文。 */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+.works {
+  position: relative;
+}
+
+/* -- WORK 段的「跳过」胶囊 ---------------------------------------------------
+   进本段（时间轴区间开始）时浮在视口右下角，一键落到时间轴走完那一帧。显隐由
+   ../sections/works.ts 的一条 ScrollTrigger（与时间轴同区间）切换 `.is-visible`。
+
+   材质与层级**照抄 .identity__skip**（见上面那段）：半透明浅底 + 描边 + 模糊 + 投影，
+   落在浅绿页面上像同一种材质；z-index 20 高于舞台合成层、低于导航栏(30)。
+
+   定位是 `fixed`，所以它必须挂在 `section.s-work` 上（那里没有 transform）——
+   放进 `.s__outer` 会被它的 `clip-path` 一起裁掉，见 works.ts 的注释。 */
+.work__skip {
+  position: fixed;
+  right: clamp(1rem, 4vw, 2.5rem);
+  bottom: clamp(1rem, 4vw, 2.5rem);
+  z-index: 20;
+  margin: 0;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  opacity: 0;
+  transform: translateY(0.6rem);
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease-out), transform 0.28s var(--ease-out),
+    background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.work__skip.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.work__skip:hover,
+.work__skip:focus-visible {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+}
+
+/* 参考站三个颜色变量的角色 → 本站绿主题：
+     primary   板块外壳底色 + 暗底上的亮字/亮线   → #3f7d58（= --brand）
+     secondary .s__inner 与卡片的暗面 + 描边      → #0f2417
+     shadow    幽灵字偏移影 + 盒体侧面            → #24513a
+     white     图注高光字                         → #f2f7f0（= --bg）
+   明暗关系与原站一致：外壳中绿 → 内屏近黑绿底 + 中绿字 → 卡面近黑绿 + 中绿图注。 */
+.s-work,
+.s-my-way {
+  --color-primary: #3f7d58;
+  --color-secondary: #0f2417;
+  --color-shadow: #24513a;
+  --color-white: #f2f7f0;
+  --font-family-bigger: "Archivo Narrow", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Noto Sans SC", sans-serif;
+  --font-family-fraktion: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+/* Lenis 的滚动基线（与参考站一致；本站只借它的平滑，不改滚动容器）。 */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+/* ---------------------------------------------------------------------------
+   a-separator —— 二进制分隔带（逐字移植，含 nth-child 的隐藏规则）
+   参考站用伪元素 `content:"01"` + `word-break:break-all` 让 0 / 1 竖向堆叠，
+   再把 `translate: 0 -100%` 当作「翻转」。这里唯一的差别是斜杠条纹的文本走
+   `attr(data-stripes)`——CSS 里塞 300 个斜杠太难维护。
+--------------------------------------------------------------------------- */
+.a-separator {
+  --color-secondary: var(--text);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  padding: 0 1rem;
+  width: 100%;
+  height: 2.25rem;
+  border-top: 1px solid var(--color-secondary);
+  border-bottom: 1px solid var(--color-secondary);
+  font: 400 8px/16px var(--font-family-fraktion);
+}
+
+.a-separator .a__triangle {
+  position: absolute;
+  top: 50%;
+  border-top: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  transform: translate3d(0, -40%, 0);
+}
+
+.a-separator .a__triangle:first-child {
+  left: 1rem;
+  border-left: 4px solid var(--color-secondary);
+}
+
+.a-separator .a__triangle:last-child {
+  right: 1rem;
+  border-right: 4px solid var(--color-secondary);
+}
+
+.a-separator .a__binaries {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.7rem;
+}
+
+.a-separator .a__code {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.a-separator .a__code:nth-child(6n + 3),
+.a-separator .a__code:nth-child(6n + 5) {
+  display: none;
+}
+
+.a-separator .a__char {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  color: transparent;
+}
+
+.a-separator .a__char::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2em;
+  color: var(--color-secondary);
+  word-break: break-all;
+  will-change: translate;
+  content: "01";
+}
+
+.a-separator .a__char--1::before {
+  translate: 0 -100%;
+}
+
+.a-separator .a__char--blank::before {
+  content: none;
+}
+
+.a-separator .a__stripes {
+  margin: 0 8px;
+  height: 8px;
+  overflow: hidden;
+  text-shadow: 0 0 1px var(--color-secondary);
+  line-height: 8px;
+}
+
+.a-separator .a__stripes::before {
+  content: attr(data-stripes);
+  word-break: break-word;
+}
+
+.a-separator .a__stripes:last-child {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   .s-work —— 钉住的舞台
+--------------------------------------------------------------------------- */
+.s-work {
+  --height: 1700lvh;
+  position: relative;
+  /* 参考站这里是 2（`.s-my-way` 是 3）——**这是本项目唯一一处有意偏离参考站的层叠**。
+     理由：`.s-my-way` 带着 `clip-path: inset(-100vh 0 …)`，它的 3D 对象会向上飘出
+     自己板外 100vh；参考站靠「`.s-my-way` 在上」让这些对象压在 `s-work` 上方，
+     于是在胶囊合拢之后，窗口下面会探出半截与本段无关的方块。
+     抬到 4（再上一档），让 `s-work` 的遮片把「还没轮到它出场」的对象压住；
+     同时仍低于 `.leaf-canvas`(5) 与 `.site-header`(30)，不抢全局装饰与导航。 */
+  z-index: 4;
+  height: var(--height);
+  background: var(--color-primary);
+}
+
+.s-work::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  width: 100%;
+  height: 1px;
+  background: var(--color-secondary);
+  content: "";
+}
+
+/* 遮罩层：sticky 铺满一屏，靠 scale 把中间的观察窗张开。 */
+.s-work .s__mask-outer {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100lvh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.s-work .s__mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  will-change: scale, transform;
+}
+
+.s-work .s__mask__svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.s-work .s__mask__path-outer {
+  fill: var(--color-primary);
+  fill-rule: evenodd;
+  stroke: var(--color-secondary);
+  stroke-width: 1px;
+}
+
+.s-work .s__mask__path-inner {
+  fill: var(--color-primary);
+  fill-rule: evenodd;
+  stroke: var(--color-secondary);
+  stroke-width: 1px;
+  transform: translate3d(0, calc(var(--scroll-progress, 0) * 48px), 0);
+  will-change: transform;
+}
+
+.s-work .s__mask__path-lines {
+  fill: none;
+  stroke: var(--color-secondary);
+  stroke-width: 1px;
+}
+
+/* 只提供滚动行程 + 把 fixed 的内层裁进本段。 */
+.s-work .s__outer {
+  position: relative;
+  height: var(--height);
+  clip-path: inset(0 -1rem);
+}
+
+/* 真正「钉住」的那一屏。position: fixed 被祖先的 clip-path 约束在本段范围内。
+   注意：本元素的任何祖先都不能有 transform/filter/perspective/contain，
+   否则包含块会变、fixed 失效。 */
+.s-work .s__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--color-secondary);
+  transform: translate3d(0, calc(var(--scroll-progress, 0) * -15%), 0);
+  color: var(--color-primary);
+  will-change: clip-path, transform;
+}
+
+.s-work .s__ruler {
+  --width: min(16.6667%, 19.625rem);
+  position: absolute;
+  top: 10lvh;
+  left: calc(50% - var(--width) / 2);
+  width: var(--width);
+  height: 80lvh;
+  pointer-events: none;
+}
+
+.s-work .s__title,
+.s-work .s__scene {
+  font: 700 min(18.75rem, 25lvh) / 1 var(--font-family-bigger);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.s-work .s__title__inner,
+.s-work .s__scene__letter {
+  line-height: 0.85;
+}
+
+/* 原生那四个字母是隐藏的——可见的是它复制出来的幽灵阵列。 */
+.s-work .s__title {
+  width: 0.7em;
+  opacity: 0;
+  word-break: break-all;
+}
+
+.s-work .s__title__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0.075em 0 -0.125em;
+}
+
+.s-work .s__scene {
+  --shadow: var(--color-shadow);
+  --progress: 0.5;
+  --state: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  perspective: 40rem;
+  will-change: transform;
+}
+
+/* 幽灵字母：`--state` 是唯一的开关——0 时全部叠回原位（= 那四个字），
+   1 时按各自的 --progress 向两侧炸开成跑马灯。 */
+.s-work .s__scene .s__scene__letter {
+  --head: calc((var(--progress, 0.5) - 0.5) * -2);
+  --ahead: calc(var(--head) * var(--head));
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  transform: rotateY(calc(var(--head) * -10deg * var(--state, 0)))
+    translate3d(
+      calc(var(--head) * 50vw * var(--state, 0)),
+      calc(var(--iy, 0) * 50% * var(--ahead) * var(--state, 0)),
+      0
+    );
+  pointer-events: none;
+  will-change: transform;
+}
+
+.s-work .s__scene .s__scene__letter::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  color: var(--color-shadow);
+  opacity: min(var(--state, 0) * 2, 1);
+  transform: scale(1.05, 1.02)
+    translate3d(calc(var(--head) * 0.1rem * var(--state, 0) * var(--state, 0)), 0, 0);
+  transform-origin: calc(50% - var(--head) * 50%) -50%;
+  will-change: opacity, transform;
+  content: attr(data-letter);
+}
+
+/* 卡片：--progress 从 1 一路推到 -1 —— 右侧飞入、穿过中央、左侧飞出，从不「停下」。
+   缺省的 --progress 取 1（屏外），避免 JS 起来之前卡片挤在中央。 */
+.s-work .s__scene .s__scene__work {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  transform: rotateY(calc(var(--progress, 1) * -20deg))
+    translate3d(
+      calc(var(--progress, 1) * (50vw + 100%) - 50%),
+      calc(var(--y, 0) * 50% - 50%),
+      calc(var(--progress, 1) * var(--progress, 1) * -5rem)
+    )
+    scale(var(--size, 1));
+  will-change: transform;
+}
+
+.s-work .s__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  transform: translate3d(0, calc(var(--scroll-progress, 0) * -5%), 0);
+}
+
+/* ---------------------------------------------------------------------------
+   .a-work —— 作品卡（参考站是 <a-work> 自定义元素）
+   参考站用 content-visibility: hidden 省渲染，但它会附带尺寸包含、把绝对定位的
+   卡片压成 0 宽（`-50%` 居中补偿会失效）。这里改用 visibility，几何始终稳定，
+   省下的渲染收益对这个体量无所谓。
+--------------------------------------------------------------------------- */
+.a-work {
+  position: relative;
+  top: 0;
+  left: 0;
+  display: block;
+  margin: 0;
+  padding: 0.5rem 0.5rem 0;
+  background: var(--color-secondary);
+  transform-style: preserve-3d;
+  visibility: hidden;
+  will-change: transform;
+}
+
+.a-work.is-inview {
+  visibility: visible;
+}
+
+.a-work .a__link {
+  display: block;
+  text-decoration: none;
+}
+
+.a-work .a__inner {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.a-work .a__video,
+.a-work .a__img {
+  /* 参考站卡片没有媒体包裹层——媒体本身决定卡片尺寸：固有 1082×636 的替换元素在
+     `max-width/max-height` 的夹逼下会自动等比缩放到 50vw × 50vh 之内。 */
+  display: block;
+  width: auto;
+  max-width: 50vw;
+  height: auto;
+  max-height: 50vh;
+  background: #0b1a11;
+}
+
+.a-work .a__caption {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem;
+  color: var(--color-primary);
+  font: 700 11px/1 var(--font-family-fraktion);
+  letter-spacing: 0.15em;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.a-work .a__caption__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a-work .a__caption__key {
+  flex: none;
+  opacity: 0.72;
+}
+
+/* ---------------------------------------------------------------------------
+   .s-my-way —— 结尾区块（笑脸 + 3D 盒子对象池 + 四行大字）
+--------------------------------------------------------------------------- */
+.s-my-way {
+  --padding: 40rem;
+  --smiley-size: 5.625rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  padding: calc(var(--padding) * 0.75) 0 calc(var(--padding) * 1.5);
+  /* 裁切全靠这一条，**不要改回 `overflow: hidden`**：clip-path 的左右收 0，
+     所以横向绝不会外溢（实测 `documentElement` 无横向滚动）；而上下是放开的
+     （上 −100vh、下 −1.375 × padding），这正是两处效果的前提：
+       · 对象层比板块上下各外扩 100vh，物体要从**屏幕外**飞进来才算「飞行」，
+         剪到板块框上就变成「凭空出现在框里」；
+       · 底部四行大字的「正常版」就等在板块下沿之外，靠滚动升上来。
+     参考站的 `.s-my-way` 同样没有 overflow。 */
+  clip-path: inset(-100vh 0 calc(var(--padding) * -1.375));
+  background: var(--color-primary);
+}
+
+@keyframes my-way-rotate {
+  from {
+    transform: rotate(0);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.s-my-way .s__smiley {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: var(--smiley-size);
+  height: var(--smiley-size);
+  background: var(--color-primary);
+  border-radius: 999rem;
+  animation: my-way-rotate 10s linear infinite;
+  will-change: transform;
+}
+
+.s-my-way .s__smiley path {
+  fill: var(--color-secondary);
+}
+
+.s-my-way .s__smiley circle {
+  fill: var(--color-primary);
+}
+
+.s-my-way .s__objects {
+  position: absolute;
+  top: -100vh;
+  bottom: -100vh;
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+  perspective: 1000px;
+  perspective-origin: 50% calc(50% - var(--padding) * 0.4);
+  pointer-events: none;
+  transform-style: preserve-3d;
+  will-change: opacity;
+}
+
+.s-my-way .s__ruler {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: calc(50% - var(--padding) * 0.4);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 3D 盒子：由 JS 每帧写 --x/--y/--z/--rx/--ry/--rz/--s。 */
+.s-my-way .a-object {
+  --s: 0;
+  --x: 0px;
+  --y: 0px;
+  --z: -1000px;
+  --rx: 0;
+  --ry: 0;
+  --rz: 0;
+  --depth: 1rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  cursor: grab;
+  transform: translate3d(calc(var(--x) - 50%), calc(var(--y) - 50%), var(--z))
+    rotateX(calc(var(--rx) * 1deg)) rotateY(calc(var(--ry) * 1deg))
+    rotate(calc(var(--rz) * 1deg)) scale(var(--s));
+  transform-style: preserve-3d;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.s-my-way .a-object.is-waiting {
+  display: none;
+  transform: scale(0);
+}
+
+/* —— 相框 —— */
+.s-my-way .a-object--frame {
+  width: 500px;
+  pointer-events: all;
+}
+
+.s-my-way .a-object--frame .a__inner {
+  display: block;
+  margin: 0;
+  padding: 1.5rem 1.5rem 0;
+  background: var(--color-secondary);
+}
+
+.s-my-way .a-object--frame .a__img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* 占位画面（没有真素材时）：比例由 JS 按 `content/my-way.ts` 的数据表写进 `--ratio`，
+   与参考站每张素材的 width/height 一一对应——相框高度因此和原站一样参差，
+   飞过镜头时的遮挡关系才有节奏。换成真图后这条规则自动失效（不再挂这个 class）。 */
+.s-my-way .a-object--frame .a__img--placeholder {
+  aspect-ratio: var(--ratio, 1);
+  background:
+    radial-gradient(90% 70% at 24% 18%, rgb(63 125 88 / 55%), transparent 68%),
+    linear-gradient(150deg, #23412f, #0f2417);
+}
+
+.s-my-way .a-object--frame .a__caption {
+  display: block;
+  padding: 1.2rem 0;
+  color: var(--color-white);
+  font: 400 12px/1 var(--font-family-fraktion);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* 用伪元素补出盒子的「厚度」——背面 + 四个侧面。 */
+.s-my-way .a-object--frame::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--color-secondary);
+  transform: translateZ(calc(var(--depth) * -1 + 1px)) rotateY(180deg);
+  content: "";
+}
+
+.s-my-way .a-object--frame .a__side {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.s-my-way .a-object--frame .a__side::before,
+.s-my-way .a-object--frame .a__side::after {
+  position: absolute;
+  background: var(--color-shadow);
+  backface-visibility: visible;
+  content: "";
+}
+
+.s-my-way .a-object--frame .a__side--horizontal::before {
+  top: 0;
+  left: 0;
+  width: var(--depth);
+  height: 100%;
+  transform: rotateY(90deg);
+  transform-origin: 0 50%;
+}
+
+.s-my-way .a-object--frame .a__side--horizontal::after {
+  top: 0;
+  right: 0;
+  width: var(--depth);
+  height: 100%;
+  transform: rotateY(-90deg);
+  transform-origin: 100% 50%;
+}
+
+.s-my-way .a-object--frame .a__side--vertical::before {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--depth);
+  transform: rotateX(-90deg);
+  transform-origin: 50% 0;
+}
+
+.s-my-way .a-object--frame .a__side--vertical::after {
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: var(--depth);
+  transform: rotateX(90deg);
+  transform-origin: 50% 100%;
+}
+
+/* —— 星形 ——
+   形状逐字用参考站的 `asset-star.svg`（四尖窄星），但**颜色跟着本站主题**：原站那张是
+   写死的近黑位图（`#160000`），这里改成「mask 挖形状 + background 上色」。 */
+.s-my-way .a-object--star {
+  --depth: 1rem;
+  left: 65%;
+  width: calc(var(--size, 1) * 400px);
+  height: calc(var(--size, 1) * 400px);
+}
+
+.s-my-way .a-object--star::before,
+.s-my-way .a-object--star::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--color-secondary);
+  -webkit-mask: url("/images/asset-star.svg") center / cover no-repeat;
+  mask: url("/images/asset-star.svg") center / cover no-repeat;
+  content: "";
+}
+
+.s-my-way .a-object--star::after {
+  transform: translateZ(calc(var(--depth) * -1 + 1px));
+}
+
+.s-my-way .a-object--star .a__side {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.s-my-way .a-object--star .a__side::before,
+.s-my-way .a-object--star .a__side::after {
+  position: absolute;
+  background: var(--color-secondary);
+  backface-visibility: visible;
+  content: "";
+}
+
+.s-my-way .a-object--star .a__side--top-left::before {
+  top: 0;
+  left: 0;
+  width: var(--depth);
+  height: 50%;
+  transform: rotateY(90deg) rotateX(-81deg);
+  transform-origin: 0 100%;
+}
+
+.s-my-way .a-object--star .a__side--top-left::after {
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: var(--depth);
+  transform: rotateX(-90deg) rotateY(81deg);
+  transform-origin: 100% 0;
+}
+
+.s-my-way .a-object--star .a__side--top-right::before {
+  top: 0;
+  right: 0;
+  width: var(--depth);
+  height: 50%;
+  /* 右侧一律 `-90deg`（左侧才用 `+90deg`）——与相框的竖直侧壁同一个规则。
+     写成 `+90deg` 会让这块面朝 +z（镜头外）翻出去，变成一根挂在星角上的自由直条，
+     就是用户看到的那「一个角」。参考站 ref.css 逐字为 `rotateY(-90deg)`。 */
+  transform: rotateY(-90deg) rotateX(-81deg);
+  transform-origin: 100% 100%;
+}
+
+.s-my-way .a-object--star .a__side--top-right::after {
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: var(--depth);
+  transform: rotateX(-90deg) rotateY(-81deg);
+  transform-origin: 0 0;
+}
+
+.s-my-way .a-object--star .a__side--bottom-left::before {
+  bottom: 0;
+  left: 0;
+  width: var(--depth);
+  height: 50%;
+  transform: rotateY(90deg) rotateX(81deg);
+  transform-origin: 0 0;
+}
+
+.s-my-way .a-object--star .a__side--bottom-left::after {
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  height: var(--depth);
+  transform: rotateX(90deg) rotateY(81deg);
+  transform-origin: 100% 100%;
+}
+
+.s-my-way .a-object--star .a__side--bottom-right::before {
+  bottom: 0;
+  right: 0;
+  width: var(--depth);
+  height: 50%;
+  /* 同上：右侧必须 `-90deg`，参考站 ref.css 逐字如此。 */
+  transform: rotateY(-90deg) rotateX(81deg);
+  transform-origin: 100% 0;
+}
+
+.s-my-way .a-object--star .a__side--bottom-right::after {
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  height: var(--depth);
+  transform: rotateX(90deg) rotateY(-81deg);
+  transform-origin: 0 100%;
+}
+
+/* —— 拖拽 / 消散 —— */
+.s-my-way .a-object.is-dragging {
+  z-index: 2;
+  transform-style: flat;
+  cursor: grabbing;
+}
+
+.s-my-way .a-object.is-dragging::after,
+.s-my-way .a-object.is-dragging .a__side {
+  display: none;
+}
+
+/* 消散：照搬参考站的「30 帧精灵横扫」。
+   `sprite-vanish.png` 横向排着 30 帧溶解图案，`mask-size: 3000% 100%` 让整张精灵铺满
+   容器宽度，`mask-position` 从 `left 0` 走到 `right 0`（每走一格露出一帧），配
+   `steps(29, end)` 一帧一帧地跳。`both` 不能省：走完停在最后一帧（整张被抹掉）上。
+   素材已随包发出，路径与参考站一字不差。 */
+@keyframes my-way-vanish {
+  0% {
+    -webkit-mask-position: left 0;
+    mask-position: left 0;
+  }
+  to {
+    -webkit-mask-position: right 0;
+    mask-position: right 0;
+  }
+}
+
+.s-my-way .a-object.is-vanishing {
+  --strip-width: 1px;
+  --strip-gap: 25px;
+  z-index: 2;
+  cursor: default;
+  pointer-events: none;
+  transform-style: flat;
+  background:
+    linear-gradient(
+        90deg,
+        var(--color-secondary),
+        var(--color-secondary) var(--strip-width),
+        transparent var(--strip-width),
+        transparent calc(var(--strip-width) + var(--strip-gap))
+      )
+      center / calc(var(--strip-width) + var(--strip-gap)) 100% repeat,
+    linear-gradient(
+        0deg,
+        var(--color-secondary),
+        var(--color-secondary) var(--strip-width),
+        transparent var(--strip-width),
+        transparent calc(var(--strip-width) + var(--strip-gap))
+      )
+      center / 100% calc(var(--strip-width) + var(--strip-gap)) repeat,
+    var(--color-primary);
+}
+
+/* 精灵遮罩：本体和卡面各来一次（参考站也是这两个选择器并列）。
+   顺序有讲究——这条必须排在下面那条 `animation-delay` **之前**：`animation` 简写会把
+   delay 重置回 0，颠倒过来 0.105s 会静默失效。 */
+.s-my-way .a-object.is-vanishing,
+.s-my-way .a-object.is-vanishing .a__inner {
+  -webkit-mask: url("/images/sprite-vanish.png") left / 3000% 100%;
+  mask: url("/images/sprite-vanish.png") left / 3000% 100%;
+  animation: my-way-vanish 0.75s steps(29, end) 1 both;
+}
+
+.s-my-way .a-object.is-vanishing {
+  animation-delay: 0.105s;
+}
+
+.s-my-way .a-object.is-vanishing::after,
+.s-my-way .a-object.is-vanishing .a__side {
+  display: none;
+}
+
+/* —— 底部四行大字：做两份，一份带竖向斜切（碗状透视），靠 --scroll-progress 推进 —— */
+.s-my-way .s__catcher {
+  --amplitude: 50%;
+  --offset: 15%;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  width: 100%;
+  height: calc(var(--padding) * 1.05 + var(--smiley-size) / 2);
+  perspective: calc(var(--distortion, 200) * 0.85em);
+  user-select: none;
+  /* 字号 = `--padding * 倍率`。参考站是 `* 1.2`，这里用户要求缩小 → `* 0.72`（即 60%）。
+     只能改这个倍率：`--padding` 被本段 12 处几何消费（padding / clip-path /
+     perspective-origin / ruler 高度 / catcher 高度），动它会连锁改掉整段构图。
+     另外碗状透视对字号是**自相似**的——`perspective` 是 `0.7em`、`matrix3d` 的 m23
+     也是按 em 折算，字号缩小时两者同步缩，所以缩字不会让「碗」变形。
+     ≤987px 那档还有一个 `font-size` 覆盖（见断点区），两处必须同比例改。 */
+  font: 700 calc(var(--padding) * 0.72) / 1 var(--font-family-bigger);
+  line-height: 0.82;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-secondary);
+}
+
+.s-my-way .s__catcher__distorted-wrapper {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: calc(var(--padding) * 1.5);
+  overflow: hidden;
+  perspective: calc(var(--distortion, 200) * 0.7em);
+}
+
+.s-my-way .s__catcher__distorted {
+  position: absolute;
+  bottom: 0;
+  left: -100%;
+  width: 300%;
+  height: calc(var(--padding) * 1.05 + var(--smiley-size) / 2);
+  transform-origin: 50% 100%;
+  transform: matrix3d(1, 0, 0, 0, 0, 1, var(--distortion, 200), 0, 0, 0, 1, 0, 0, 0, 0, 1);
+}
+
+.s-my-way .s__catcher__normal-wrapper {
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 0;
+  width: 100%;
+  height: calc(100% + 100vh);
+  overflow: hidden;
+}
+
+.s-my-way .s__catcher__normal {
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 300%;
+  height: 100%;
+}
+
+.s-my-way .s__catcher__text {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+}
+
+.s-my-way .s__catcher__text--distorted {
+  bottom: 0;
+  transform: translate3d(
+    0,
+    calc(var(--scroll-progress, 0) * var(--amplitude) - var(--offset)),
+    0
+  );
+}
+
+.s-my-way .s__catcher__text--normal {
+  top: 0;
+  transform: translate3d(
+    0,
+    calc(var(--scroll-progress, 0) * var(--amplitude) - 100% - var(--offset)),
+    0
+  );
+}
+
+/* —— 从四周指向笑脸的放射线 —— */
+.s-my-way .s__svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.s-my-way .s__svg__circular-path {
+  fill: none;
+  stroke: var(--color-secondary);
+  stroke-width: 1px;
+}
+
+.s-my-way.is-out-of-view-bottom .a-object,
+.s-my-way.is-out-of-view-bottom .s__catcher {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   断点：与参考站一致（987px 去掉卡片缩放；576px 放宽纵向散布）
+--------------------------------------------------------------------------- */
+@media (max-width: 1680px) {
+  .s-my-way {
+    --padding: 35rem;
+  }
+}
+
+@media (max-width: 1530px) {
+  .s-my-way {
+    --padding: 30rem;
+  }
+}
+
+@media (max-width: 1280px) {
+  .s-my-way {
+    --padding: 25rem;
+  }
+}
+
+@media (max-width: 987px) {
+  .s-work .s__ruler {
+    --width: 33.3333%;
+  }
+
+  .s-work .s__scene .s__scene__work {
+    transform: rotateY(calc(var(--progress, 1) * -20deg))
+      translate3d(
+        calc(var(--progress, 1) * (50vw + 100%) - 50%),
+        calc(var(--y, 0) * 50% - 50%),
+        calc(var(--progress, 1) * var(--progress, 1) * -5rem)
+      );
+  }
+
+  .s-my-way {
+    --padding: 30rem;
+    padding: calc(var(--padding) * 0.75) 0 calc(var(--padding) * 1.25);
+    clip-path: inset(-100vh 0 calc(var(--padding) * -1.2));
+  }
+
+  .s-my-way .s__catcher {
+    --amplitude: 75%;
+    --offset: 27.5%;
+    perspective: calc(var(--distortion, 200) * 1.05em);
+    /* 与基准档同比例缩（0.72 × 0.625 = 0.45）；只改基准档这一条会被这里盖掉。 */
+    font-size: calc(var(--padding) * 0.45);
+  }
+
+  .s-my-way .a-object--frame {
+    width: 300px;
+  }
+}
+
+@media (max-width: 767px) {
+  .s-my-way {
+    --padding: 25rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .s-work .s__ruler {
+    --width: 50%;
+  }
+
+  .s-work .s__scene .s__scene__work {
+    transform: rotateY(calc(var(--progress, 1) * -20deg))
+      translate3d(
+        calc(var(--progress, 1) * (50vw + 100%) - 50%),
+        calc(var(--y, 0) * 100% - 50%),
+        calc(var(--progress, 1) * var(--progress, 1) * -5rem)
+      );
+  }
+
+  .s-my-way {
+    --padding: 18rem;
+  }
+
+  .a-work .a__video,
+  .a-work .a__img {
+    max-width: 80vw;
+    max-height: 80vh;
+  }
+
+  .a-work .a__caption {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   减少动态：构图的静态终态由 JS（work-stage.settle() / my-way）直接摆好，
+   这里只关掉那些「靠 CSS 自己跑」的东西，避免用 transform:none 去抹掉 JS 的
+   定位（那会让卡片的 -50% 居中补偿失效）。
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .s-my-way .s__smiley {
+    animation: none;
+  }
+
+  .s-my-way .a-object.is-vanishing {
+    animation: none;
+  }
+
+  .a-work {
+    visibility: visible;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   "Let's Rock" CTA + 页脚 —— 忠实移植 wodniack.dev 的 .s-cta / .site-foot
+   （参考站页面最后两块；逐帧量由 ../scene/cta-stage.ts 写行内样式，这里只读。）
+
+   结构、关键帧、缓动、断点都照搬参考站，只做四类必要改动：
+     ① 去掉 `astro-*` 的 scope 哈希，元素选择器统一成类选择器
+        （本站不用自定义元素，HMR 下 customElements.define 会重复注册抛错）；
+     ② 配色由参考站的红/黑映射到本站的绿（见下面的 --color-* 别名）；
+     ③ `.s__inner` 的高度基准：参考站写 `calc(100vh - 8rem - 2px)`，那是它自己
+        `body{padding:1rem}` + 固定头部 + 两条 1px 边线的账。本站没有页面相框，
+        只有 `--header-height`；而且被"钉住"的全屏舞台全站一律用 `lvh`
+        （见 .s-work 的 --height 与 .s__ruler）——地址栏收放时它不变，dvh/svh 会抖。
+        所以落成 `calc(100lvh - var(--header-height))`；
+     ④ 给 `.s-cta` / `.site-foot` 补 `background: var(--color-primary)`：参考站的底
+        是 `body{background:var(--color-primary)}` 铺的，本站 body 是浅色渐变，
+        不补的话这一段的浅色底会和上方 .s-work / .s-my-way 的纯绿之间裂出一道接缝。
+
+   `.s-cta` 顶上那 55rem 留白**照抄不动**：`--headless` 下看着很多，但它不是笔误——
+   本站 `.s-my-way` 是逐字移植的，`--padding: 40rem` 且下留白 `* 1.5` = 60rem，
+   参考站同样是「my-way 60rem + s-cta 55rem」叠加，属于原设计。
+--------------------------------------------------------------------------- */
+
+/* 参考站三个颜色变量的角色 → 本站绿主题（与 .s-work / .s-my-way 同一套）：
+     primary   段底色 + 暗底上的亮字/亮线   → #3f7d58（= --brand）
+     secondary 圆盘/按钮的暗面 + 描边 + 网格线 → #0f2417
+     white     星形与图注的高光字           → #f2f7f0（= --bg） */
+.s-cta,
+.site-foot {
+  --color-primary: #3f7d58;
+  --color-secondary: #0f2417;
+  --color-shadow: #24513a;
+  --color-white: #f2f7f0;
+  --font-family-bigger: "Archivo Narrow", system-ui, -apple-system, "Segoe UI", Roboto,
+    "Noto Sans SC", sans-serif;
+  --font-family-fraktion: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.s-cta {
+  /* —— 字号校准旋钮 ——
+     参考站的整个字号系数 `.3743` 是给它自己的 Bigger Display（极窄压缩显示体）调的，
+     换成自托管的 Archivo Narrow 后必须重算。判据沿用参考站那条：**单行字宽 / 圆盘直径
+     ≤ 0.68**（0.68 是「两行叠在一起时左右还留得出边」的经验上限）。
+
+     当前两行是「阿根」（CJK）/「MnO4_」（Latin），约束落在**下行**：
+       · `MnO4_` 的 advance 之和 = 2.734em（M .683 / n .501 / O .638 / 4 .456 / _ .456，
+         由 .workbuddy/tmp/font-metrics.cjs 直接从 woff2 的 hmtx/cmap 里读出来的，不是估的）；
+       · 上行 2 个汉字走的是回退 CJK 字体（Archivo Narrow 的 unicode-range 只覆盖 latin，
+         见文件下方 @font-face），每字 1em → 2.0em，离上限还远。
+     → 0.68 / 2.734 ≈ 0.2487 是硬上界，取 0.248 留一点余量。
+
+     这一档只决定「字看起来多大」，不影响别的任何东西——两行各按自己的自然宽度排，
+     不再凑等宽（原来那条「让 Rock 与 Let's 等宽」的字距旋钮因此删掉了）。
+     `?probe=1` 会把实测字宽/直径打出来，想更饱满就在 0.24~0.2487 之间调。 */
+  --cta-font-ratio: 0.248;
+
+  position: relative;
+  z-index: 2;
+  padding: 55rem 0 0;
+  background: var(--color-primary);
+}
+
+@media (max-width: 1680px) {
+  .s-cta {
+    padding-top: 48rem;
+  }
+}
+
+@media (max-width: 1530px) {
+  .s-cta {
+    padding-top: 41.25rem;
+  }
+}
+
+@media (max-width: 1280px) {
+  .s-cta {
+    padding-top: 34.375rem;
+  }
+}
+
+@media (max-width: 987px) {
+  .s-cta {
+    padding-top: 36rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .s-cta {
+    padding-top: 30rem;
+  }
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .s-cta {
+    padding-top: 21.6rem;
+  }
+}
+
+/* 视口高一屏：圆盘就居中在它里面，所以它有多高一屏就有多高。 */
+.s-cta .s__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  height: calc(100lvh - var(--header-height));
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .s-cta .s__inner {
+    height: calc(100lvh - 4.25rem);
+  }
+}
+
+/* —— GO 按钮 ——
+   注意它只有 6rem，而这个尺寸**同时就是 `.s__hover` 的尺寸**（里面另两个都是绝对
+   定位的），所以"悬停热区 = 这颗按钮"。圆盘张开后 `.s__cta` 变成 pointer-events:auto，
+   而它是 `.s__hover` 的后代——鼠标移进圆盘不会触发 mouseleave，这是这套交互能成立的
+   关键，别给 `.s__hover` 加 `overflow` 或把它拆出去。 */
+.s-cta .s__button {
+  position: relative;
+  z-index: 1;
+  width: 6rem;
+  height: 6rem;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 3.75rem;
+  /* —— 第三个字体校准常数 ——
+     `6.85rem` 是参考站按 **Bigger Display** 的垂直度量凑出来的：让
+     `(lineHeight − 内容高)/2 + ascent − cap高/2 = 3rem`（盒中心）恰好成立。
+     换成本站的 Archivo Narrow 后这个等式不成立了 —— 直接从 woff2 读出来的度量是
+     `unitsPerEm 1000`、`hhea.ascender 1035`、`descender −312`、`OS/2.sCapHeight 686`：
+
+       内容区高 = (1035+312)/1000 × 3.75 = 5.05125rem
+       半行距   = (6.85 − 5.05125)/2   = 0.899375rem
+       基线     = 0.899375 + 1.035×3.75 = 4.780625rem
+       cap 中心 = 4.780625 − 0.686×3.75/2 = 3.494375rem
+     盒子中心是 3rem → **「GO」偏下 0.494375rem = 7.91px**。
+
+     要让 cap 中心回到 3rem：`(L − 5.05125)/2 = 3 − 3.88125 + 1.28625 = 0.405`
+     → `L = 5.86125rem`。下面是解出来的值。
+     （不要改成 `line-height: 1` + flex 居中：那样 cap 中心还差 1.11px，且会撞上
+       GSAP 往这个元素写 transform 的那条路径。）
+     横向不用动：`text-indent` 是给 `letter-spacing` 尾随空隙做补偿的 em 相对量，
+     与字体无关，净偏移约 +0.75px。 */
+  line-height: 5.86125rem;
+  font-family: var(--font-family-bigger);
+  letter-spacing: 0.05em;
+  text-align: center;
+  text-indent: 0.075em;
+  text-transform: uppercase;
+}
+
+.s-cta .s__button__inner {
+  width: 100%;
+  height: 100%;
+  background: var(--color-secondary);
+  border-radius: 999rem;
+  transition: scale 1s cubic-bezier(0.23, 1, 0.32, 1) 0.2s;
+  will-change: scale;
+}
+
+.s-cta .s__button__text {
+  transition: scale 1.2s cubic-bezier(0.23, 1, 0.32, 1) 0.2s;
+  will-change: scale;
+}
+
+.s-cta .s__hover.is-active .s__button .s__button__inner {
+  scale: 1.5;
+  transition: scale 0.6s cubic-bezier(0.755, 0.05, 0.855, 0.06) 0s;
+}
+
+.s-cta .s__hover.is-active .s__button .s__button__text {
+  animation-play-state: paused;
+  scale: 2;
+  transition: scale 0.6s cubic-bezier(0.55, 0.055, 0.675, 0.19) 0s;
+}
+
+/* —— 圆盘 ——
+   `:before` / `:after` 各用一个半宽的边框把整颗圆盘填满（`z-index:4`，盖住字），
+   展开时才收成 1rem / 1px 的环——所以"张开"其实是两道填色同时让开。 */
+.s-cta .s__cta {
+  --size: 64rem;
+  position: absolute;
+  top: calc(50% - var(--size) / 2);
+  left: calc(50% - var(--size) / 2);
+  z-index: 2;
+  width: var(--size);
+  height: var(--size);
+  background: var(--color-secondary);
+  border-radius: 999rem;
+  clip-path: circle(0 at 50% 50%);
+  overflow: hidden;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: calc(var(--size) * var(--cta-font-ratio));
+  line-height: 1;
+  font-family: var(--font-family-bigger);
+  text-align: center;
+  text-transform: uppercase;
+  transition: clip-path 0.6s cubic-bezier(0.86, 0, 0.07, 1);
+  will-change: clip-path;
+  pointer-events: none;
+}
+
+/* —— 圆盘的两道环 ——
+   下面这条 `box-sizing` 是**必需的，别删**（参考站里由 modern-normalize 的
+   `*,:before,:after{box-sizing:border-box}` 提供）：
+   本项目全局 reset 只有 `* { box-sizing: border-box }`，而 **`*` 不匹配伪元素** ——
+   少了这一行，`::before/::after` 会落回 UA 默认的 `content-box`，于是
+   `width/height:100%` 只算内容盒，那圈 `border: calc(var(--size) * .5)` 加在外面，
+   边框盒变成 2 × size、环心跑到圆盘的**右下角**（800px 时偏 +400,+400）。
+   表现是：静止时被 `clip-path: circle(0)` 藏住看不出来，**一悬停**内孔半径恒为 400
+   而圆心从右下角平移进来，外圈还超出裁切半径被切成一段偏心圆弧 ——
+   也就是「各种圈的圆心没有在一起、从角上冲进来」。
+   有了 border-box：静止时边框把圆盘实心填满（内孔半径 0），悬停时内孔 0 → 384
+   **从盘心对称开眼**，这才是参考站的机制。 */
+.s-cta .s__cta:before,
+.s-cta .s__cta:after {
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  border-radius: 999rem;
+  transition: border-width 0.6s cubic-bezier(0.86, 0, 0.07, 1);
+  will-change: border-width;
+  content: "";
+  pointer-events: none;
+}
+
+.s-cta .s__cta:before {
+  border: calc(var(--size) * 0.5) solid var(--color-primary);
+}
+
+.s-cta .s__cta:after {
+  border: calc(var(--size) * 0.5) solid var(--color-secondary);
+}
+
+.s-cta .s__cta__link {
+  position: absolute;
+  top: calc(50% + var(--size) * 0.36);
+  left: 50%;
+  z-index: 3;
+  display: block;
+  padding: 1em 1em 1em 2em;
+  background: var(--color-secondary);
+  opacity: 0;
+  transform: translate3d(-50%, 1em, 0);
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1;
+  font-family: var(--font-family-fraktion);
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: transform 0s linear 0.3s, opacity 0s linear 0.3s;
+  will-change: transform, opacity;
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .s-cta .s__cta__link {
+    top: calc(50% + var(--size) * 0.28);
+    padding: 1em;
+    font-size: 13px;
+  }
+}
+
+.s-cta .s__cta__link:before {
+  position: absolute;
+  top: calc(50% - 3px);
+  left: 0.6em;
+  border-top: 3px solid transparent;
+  border-left: 6px solid currentcolor;
+  border-bottom: 3px solid transparent;
+  content: "";
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .s-cta .s__cta__link:before {
+    display: none;
+  }
+}
+
+/* 999rem 的透明点击体：圆盘边缘那圈空隙也算在链接上。 */
+.s-cta .s__cta__link:after {
+  position: absolute;
+  top: calc(50% - 499rem);
+  left: calc(50% - 499rem);
+  width: 999rem;
+  height: 999rem;
+  background: transparent;
+  content: "";
+}
+
+/* —— 两行大字 ——
+   两行是**同一个圆心**叠在一起的，各被 `clip-path` 裁掉一半：上行只露字的上半、
+   下行只露字的下半，于是看起来是一整块被中缝切开的双行字。改 `top` / clip 的
+   中缝偏移就会散架，别动。
+
+   但这两条 `clip-path` 的 `50%` 落在 0.8em 盒的**几何中心**，而字形在盒内是顶对齐的
+   （`align-items: flex-start` + `line-height: 1`）→ 基线在 `(1 − 1.347)/2 + 1.035 = 0.8615em`，
+   Latin 的 cap 区间是 `[0.1755em, 0.8615em]`、视觉中心在 **0.5185em**，
+   比中缝低了 0.1185em。也就是说两半并不平分字形：上行只露 cap 顶部、下行连底部一起露
+   （用户报的就是「Rock 还看得见一点底部 / Let's 的底部被切」）。
+
+   修法**不是**去挪这两条 clip —— 两行盒子共圆心，挪任意一条都会让两条缝错开、断开成两截。
+   正确做法是：**中缝留在盒几何中心，把每一行各自的「墨迹中心」平移上来**，
+   见下面的 `--line-shift`。 */
+.s-cta .s__cta__line {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  translate: -50% -50%;
+  scale: 0.5;
+  transition: scale 0.6s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  will-change: scale;
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .s-cta .s__cta__line {
+    top: 45%;
+  }
+}
+
+.s-cta .s__cta__line--top {
+  clip-path: inset(-100% 0 calc(50% + 0.01em) 0);
+  /* 静态兜底：`cta-stage.ts` 会用 canvas 量出的真实墨迹中心覆写它（行内样式优先）。
+     这里的值只是「还没量到 / 量不出来（jsdom 没有 2D 上下文）」时的近似。 */
+  --line-shift: -0.08em;
+}
+
+.s-cta .s__cta__line--top .s__cta__char__slice {
+  --toggle-delay: calc(var(--delay) + var(--offset) + 0.45s);
+}
+
+.s-cta .s__cta__line--top .s__cta__char__slice:nth-child(2) {
+  clip-path: inset(0 0 calc(100% - 0.03em) 0);
+}
+
+.s-cta .s__cta__line--top .s__cta__char__slice:nth-child(3) {
+  clip-path: inset(0 0 calc(100% - 0.06em) 0);
+}
+
+.s-cta .s__cta__line--top .s__cta__char__slice:nth-child(4) {
+  clip-path: inset(0 0 calc(100% - 0.09em) 0);
+}
+
+/* 下行：`Mn` 是化学式，**不能跟着圆盘一起大写**（`.s__cta` 上是 `text-transform: uppercase`，
+   但那是给「上面一整块字」定的基调）。GO 按钮有自己的 `text-transform` 声明，不受影响。
+
+   原来这里还有一条 `letter-spacing`：参考站用它把 4 字的「Rock」撑到与 5 字符宽的「Let's」
+   等宽（本站按同一模型复算出的值是 `.0315em`，那个旋钮已经删掉了）。现在两行是 2 字 CJK /
+   5 字符 Latin，天然不可能、也不要求等宽，所以连变量一起清掉了。 */
+.s-cta .s__cta__line--bottom {
+  clip-path: inset(calc(50% + 0.01em) 0 -100% 0);
+  /* 静态兜底，同上行；下方这行是 Latin + 下划线，墨迹中心比 em 盒中心低得更多。 */
+  --line-shift: -0.18em;
+  text-transform: none;
+}
+
+.s-cta .s__cta__line--bottom .s__cta__char__slice {
+  --toggle-delay: calc(var(--delay) + var(--offset) + 1.45s);
+}
+
+.s-cta .s__cta__line--bottom .s__cta__char__slice:nth-child(2) {
+  clip-path: inset(calc(100% - 0.03em) 0 0 0);
+}
+
+.s-cta .s__cta__line--bottom .s__cta__char__slice:nth-child(3) {
+  clip-path: inset(calc(100% - 0.06em) 0 0 0);
+}
+
+.s-cta .s__cta__line--bottom .s__cta__char__slice:nth-child(4) {
+  clip-path: inset(calc(100% - 0.09em) 0 0 0);
+}
+
+.s-cta .s__cta__text {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  height: 0.8em;
+  /* 中缝校正的实际落点：把整行的**墨迹中心**平移到盒几何中心（也就是那两条 clip 的 50%）。
+     正值向下、负值向上；单位用 em 而不是 px——它必须跟着字号（= 直径 × 字体系数）缩放，
+     相对圆盘才恒定。`--line-shift` 由 `.s__cta__line--top/--bottom` 给静态兜底，
+     `scene/cta-stage.ts` 量到真实墨迹后写成更准的行内值覆盖它。 */
+  translate: 0 var(--line-shift, 0em);
+}
+
+.s-cta .s__cta__char {
+  position: relative;
+  height: 100%;
+}
+
+/* 每个字错峰 0.1s。**行内字数必须落在这一串阶梯里**（当前上行 2 字、下行 5 字，
+   所以补了第 5 档）：`--delay` 缺席时 `calc(var(--delay) + var(--offset))` 整条失效，
+   那一层的 `animation-delay` 会变成 invalid 而退回 0s，切片就跟别人错不开了。 */
+.s-cta .s__cta__char:nth-child(1) {
+  --delay: 0.1s;
+}
+
+.s-cta .s__cta__char:nth-child(2) {
+  --delay: 0.2s;
+}
+
+.s-cta .s__cta__char:nth-child(3) {
+  --delay: 0.3s;
+}
+
+.s-cta .s__cta__char:nth-child(4) {
+  --delay: 0.4s;
+}
+
+.s-cta .s__cta__char:nth-child(5) {
+  --delay: 0.5s;
+}
+
+/* 切片：第 1 层是常驻的，2~4 层叠在它上面，靠 toggle 关键帧轮流显隐，
+   每层的 clip 条带往上收 0.03em —— 合起来就是"字被切成丝在抖"。 */
+.s-cta .s__cta__char__slice {
+  --offset: 0s;
+  --move-delay: calc(var(--delay) + var(--offset));
+  position: relative;
+  display: block;
+  height: 100%;
+  animation: s-cta-char-up-down 2s infinite var(--move-delay);
+  will-change: transform;
+}
+
+.s-cta .s__cta__char__slice:not(:first-child) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  animation: s-cta-char-up-down 2s infinite var(--move-delay),
+    s-cta-char-toggle 2s linear infinite var(--toggle-delay);
+}
+
+/* `.02s + .12s` 不是笔误：自定义属性存的是 token 流，这两个值最后会被塞进
+   `calc(var(--delay) + var(--offset) [+ .45s])` 里相加。写成 `.14s` 也等价，
+   但保持与参考站逐字一致更好对照。 */
+.s-cta .s__cta__char__slice:nth-child(2) {
+  --offset: 0.02s + 0.12s;
+}
+
+.s-cta .s__cta__char__slice:nth-child(3) {
+  --offset: 0.02s + 0.08s;
+}
+
+.s-cta .s__cta__char__slice:nth-child(4) {
+  --offset: 0.02s + 0.04s;
+}
+
+.s-cta .s__cta .sup {
+  font-size: 0.5em;
+  vertical-align: top;
+}
+
+/* —— 圆盘里那层网格纹理 —— */
+.s-cta .s__cta .a-dots {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 120%;
+  height: 120%;
+  scale: 1.1;
+  transition: scale 0.8s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  will-change: scale;
+}
+
+.s-cta .s__cta .a-dots:before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        var(--color-secondary) 3px,
+        var(--color-secondary) 100%
+      )
+      center / 48px 48px repeat,
+    repeating-linear-gradient(
+        90deg,
+        var(--color-primary),
+        var(--color-primary) 2px,
+        transparent 3px,
+        transparent 48px
+      )
+      center / 48px 48px repeat;
+  transform: translate3d(-50%, -50%, 0) scale(0.5);
+  content: "";
+}
+
+/* —— 四颗飘着的星 ——
+   星形宽度**故意不用 `em`**：这里的 `em` 是 `.s__cta` 的 font-size，也就是
+   `--size × 0.251` —— 而那个 0.251 是为了迁就 Archivo Narrow 从参考站的 0.3743
+   降下来的。直接写 `0.15em` 等于把星形相对圆盘一起缩了 33%
+   （参考站 0.15 × 0.3743 = 0.0561 × 直径，我们只剩 0.0377）。
+   所以改成按**圆盘直径**直接表达，回到参考站的比例。
+   位置仍然是 % 相对量，不受影响。 */
+.s-cta .s__cta__stars {
+  --star: calc(var(--size) * 0.0561);
+  --star-small: calc(var(--size) * 0.0374);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  scale: 1.25;
+  transition: scale 0.8s cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  will-change: scale;
+}
+
+.s-cta .s__cta__star {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--star);
+  height: auto;
+  fill: var(--color-primary);
+  animation: s-cta-star-float 10s infinite cubic-bezier(0.455, 0.03, 0.515, 0.955);
+  will-change: transform;
+}
+
+.s-cta .s__cta__star:nth-child(1) {
+  top: 12%;
+  left: 25%;
+  animation-duration: 8s;
+}
+
+.s-cta .s__cta__star:nth-child(2) {
+  top: 33%;
+  left: 85%;
+  width: var(--star-small);
+  animation-duration: 9s;
+}
+
+@media (max-width: 767px) {
+  .s-cta .s__cta__star:nth-child(2) {
+    width: var(--star);
+  }
+}
+
+.s-cta .s__cta__star:nth-child(3) {
+  top: 60%;
+  left: 11%;
+  width: var(--star-small);
+  animation-duration: 7s;
+}
+
+@media (max-width: 767px) {
+  .s-cta .s__cta__star:nth-child(3) {
+    width: var(--star);
+  }
+}
+
+.s-cta .s__cta__star:nth-child(4) {
+  top: 83%;
+  left: 74%;
+  width: var(--star);
+}
+
+@media (max-width: 987px) {
+  .s-cta .s__cta__star:nth-child(4) {
+    top: 79%;
+    left: 78%;
+  }
+}
+
+/* —— 展开态 —— */
+.s-cta .s__hover.is-active .s__cta {
+  clip-path: circle(50% at 50% 50%);
+  transition: clip-path 1s cubic-bezier(1, 0, 0, 1) 0.2s;
+  pointer-events: auto;
+}
+
+.s-cta .s__hover.is-active .s__cta:before {
+  border-width: 1rem;
+  transition: border-width 1.1s cubic-bezier(1, 0, 0, 1) 0.2s;
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .s-cta .s__hover.is-active .s__cta:before {
+    border-width: 0.5rem;
+  }
+}
+
+/* 1.005s = 1.1s 减掉那 0.2s 的延迟，两条环同时到终点。 */
+.s-cta .s__hover.is-active .s__cta:after {
+  border-width: 1px;
+  transition: border-width 1.005s cubic-bezier(1, 0, 0, 1) 0.2s;
+}
+
+.s-cta .s__hover.is-active .s__cta .s__cta__stars {
+  scale: 1;
+  transition: scale 2s cubic-bezier(0.23, 1, 0.32, 1) 0.4s;
+}
+
+.s-cta .s__hover.is-active .s__cta .s__cta__line {
+  scale: 1;
+  transition: scale 1.8s cubic-bezier(0.23, 1, 0.32, 1) 0.6s;
+}
+
+.s-cta .s__hover.is-active .s__cta .s__cta__link {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+  transition: transform 0.6s cubic-bezier(0.19, 1, 0.22, 1) 1s,
+    opacity 0.3s cubic-bezier(0.19, 1, 0.22, 1) 1s;
+}
+
+.s-cta .s__hover.is-active .s__cta .a-dots {
+  scale: 1;
+  transition: scale 1.8s cubic-bezier(0.23, 1, 0.32, 1) 0.6s;
+}
+
+/* —— 涟漪网格 ——
+   铺满**整个** `.s-cta`（含那 55rem 上留白），`path` 的 d 由 JS 逐帧重写。
+   线色是 secondary（深绿），落在 primary（中绿）底上。 */
+.s-cta .s__grid {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  z-index: 1;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+}
+
+.s-cta .s__grid__svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.s-cta .s__grid__path {
+  fill: none;
+  stroke: var(--color-secondary);
+  stroke-width: 1px;
+}
+
+.s-cta.is-out-of-view .s__hover {
+  display: none;
+}
+
+/* —— 关键帧（逐帧照搬）—— */
+@keyframes s-cta-char-up-down {
+  0% {
+    transform: translateZ(0);
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+  }
+  25% {
+    transform: translate3d(0, -52%, 0);
+    animation-timing-function: cubic-bezier(0.645, 0.045, 0.355, 1);
+  }
+  75% {
+    transform: translate3d(0, 52%, 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  to {
+    transform: translateZ(0);
+  }
+}
+
+@keyframes s-cta-char-toggle {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  50.01% {
+    opacity: 0;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes s-cta-star-float {
+  0% {
+    transform: translateZ(0);
+  }
+  50% {
+    transform: translate3d(0, -15%, 0) scale(0.5);
+  }
+  to {
+    transform: translateZ(0);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   页脚：一颗居中的「回到顶部」胶囊（参考站是它的 AW 几何字标）
+--------------------------------------------------------------------------- */
+.site-foot {
+  /* 胶囊底色：品牌绿 #3f7d58 是 hsl(144 33% 37%)，把明度提到 70% 得到同色相同饱和度的
+     浅绿 #99ccad。对中绿底约 2.7:1 对比 —— 一眼看得出是绿，但压得住、不会抢上面那颗圆盘。
+     底色沿用 --color-primary，别为了"让绿更实"把底改深，那会连带把 border-top
+     那条深色分隔线也吃掉。 */
+  --site-foot-mark: #99ccad;
+
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  padding: 1.5rem;
+  border-top: 1px solid var(--color-secondary);
+  background: var(--color-primary);
+}
+
+@media (max-width: 767px) and (orientation: landscape), (max-width: 576px) {
+  .site-foot {
+    padding: 1rem;
+  }
+}
+
+/* —— 页脚那颗「回到顶部」胶囊 ——
+   静止态写「回到顶部」（功能先读得懂），悬停/键盘聚焦时翻成品牌名「阿根」。
+   两个 span 叠在同一格里交叉淡入淡出，**纯 CSS 状态**、不写 JS。
+
+   为什么把参考站那颗 AW 几何字标换掉：页脚是长页面最底端，「能点回去」比再放一遍
+   品牌图形有用；品牌名在导航栏那颗已有一份。要恢复成图形只需改 `createFooter()`。
+
+   配色沿用页脚那一组 token：底用 `--site-foot-mark`（浅绿，正是原来字标的颜色，
+   只是从「字」变成了「底」），字用 `--color-secondary`（深绿），对中绿页脚底色读得清。
+   若想要更「实」的绿，把底换成 `--color-secondary` + 字换成浅绿即可，只改这两行。 */
+.site-foot__capsule {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 悬停态只有 2 个字、静止态 4 个字：给一个下限，切换文案时胶囊不会跟着缩一下。 */
+  min-width: 8.5rem;
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  background: var(--site-foot-mark);
+  color: var(--color-secondary);
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  transition: background 0.35s ease, box-shadow 0.35s ease;
+}
+
+.site-foot__capsule:hover,
+.site-foot__capsule:focus-visible {
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 36, 23, 0.28);
+}
+
+.site-foot__capsule-rest,
+.site-foot__capsule-hover {
+  transition: opacity 0.3s var(--ease-out);
+}
+
+/* 悬停态绝对定位盖在静止态之上：静止态继续占着宽度，胶囊尺寸因此纹丝不动。 */
+.site-foot__capsule-hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+.site-foot__capsule:hover .site-foot__capsule-rest,
+.site-foot__capsule:focus-visible .site-foot__capsule-rest {
+  opacity: 0;
+}
+
+.site-foot__capsule:hover .site-foot__capsule-hover,
+.site-foot__capsule:focus-visible .site-foot__capsule-hover {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   减少动态：参考站这一屏没有任何降级分支（ref.css 里 `prefers-reduced-motion`
+   出现 0 次），这里补一条。构图本身照常静态摆出，交互也保留，只关掉"自己会跑"
+   的那几样——切片错峰与飘星停下，展开态的过渡改成瞬间到位。
+   注意 ticker 那一侧（涟漪）是在 JS 里早退的，不靠 CSS。
+--------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .s-cta .s__cta__char__slice,
+  .s-cta .s__cta__star {
+    animation: none;
+  }
+
+  /* 切片 2~4 叠在第 1 层上，动画停了就得手动让开，否则会叠成一坨粗字。 */
+  .s-cta .s__cta__char__slice:not(:first-child) {
+    opacity: 0;
+  }
+
+  .s-cta .s__button__inner,
+  .s-cta .s__button__text,
+  .s-cta .s__cta,
+  .s-cta .s__cta:before,
+  .s-cta .s__cta:after,
+  .s-cta .s__cta__line,
+  .s-cta .s__cta__stars,
+  .s-cta .s__cta .a-dots,
+  .s-cta .s__hover.is-active .s__cta,
+  .s-cta .s__hover.is-active .s__cta:before,
+  .s-cta .s__hover.is-active .s__cta:after,
+  .s-cta .s__hover.is-active .s__cta .s__cta__line,
+  .s-cta .s__hover.is-active .s__cta .s__cta__stars,
+  .s-cta .s__hover.is-active .s__cta .s__cta__link,
+  .s-cta .s__hover.is-active .s__cta .a-dots {
+    transition: none;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   标签页占位页（作品 / 博客 / 留言 / 关于我）
+
+   这四页目前只建了骨架，内容留白。所以样式只做三件事：把一屏撑满（顶栏是 sticky 的，
+   空白页看起来像加载失败）、把「筹备中」这件事说清楚、给一条回主页的路。
+   底色沿用 body 的渐变，不另铺背景——换页时页面才不会像换了个站点。
+--------------------------------------------------------------------------- */
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 撑满一屏：减去顶栏（sticky 会盖在内容上）与一点下边距，让标题落在视觉中线上。 */
+  min-height: calc(100lvh - var(--header-height));
+  padding: calc(var(--header-height) + clamp(2rem, 6vw, 4rem)) clamp(1.25rem, 5vw, 4rem)
+    clamp(4rem, 10vw, 7rem);
+}
+
+.page__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: clamp(1rem, 2.4vw, 1.6rem);
+  width: min(42rem, 100%);
+  animation: page-in 0.5s var(--ease-out) both;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page__badge {
+  padding: 0.32rem 0.8rem;
+  border: 1px solid var(--pill);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  color: var(--brand-strong);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+}
+
+.page__title {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(2.6rem, 9vw, 5.5rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+
+.page__note {
+  margin: 0;
+  max-width: 32rem;
+  color: var(--muted);
+  font-size: clamp(0.98rem, 1.5vw, 1.075rem);
+  line-height: 1.8;
+}
+
+/* 复用「跳过 / 放下」那套胶囊的观感（毛玻璃浅底 + 品牌绿描边），站内按钮只此一种长相。 */
+.page__back {
+  margin-top: 0.4rem;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  transition: background 0.28s var(--ease-out), border-color 0.28s var(--ease-out),
+    box-shadow 0.28s var(--ease-out), transform 0.28s var(--ease-out);
+}
+
+.page__back:hover,
+.page__back:focus-visible {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page__inner {
+    animation: none;
+  }
+
+  .page__back {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   登录 / 注册页（#login）与个人中心（#account/<tab>）
+
+   两页共用「一屏居中 + 浅色卡片」的骨架，材质与 `.page__back` / `.admin__card`
+   同源：毛玻璃浅底 + `--line` 描边 + 大范围柔和投影。表单控件照 `.wk-search`
+   的观感来（白底 + 1px 描边 + 聚焦时品牌绿描边加 3px 光晕），别另起一套按钮。
+--------------------------------------------------------------------------- */
+
+.auth,
+.account-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100lvh - var(--header-height));
+  padding: clamp(2rem, 7vh, 4.5rem) clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.auth__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  width: min(60rem, 100%);
+}
+
+.auth__aside {
+  max-width: 26rem;
+}
+
+.auth__eyebrow {
+  margin: 0 0 0.85rem;
+  color: var(--brand);
+  font-size: 0.72rem;
+  letter-spacing: 0.36em;
+  text-transform: uppercase;
+}
+
+.auth__aside-title {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.4vw, 1.95rem);
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+.auth__aside-note {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.85;
+}
+
+.auth__card {
+  position: relative;
+  padding: clamp(1.4rem, 3vw, 2.1rem);
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 26px 60px rgba(31, 61, 43, 0.12);
+  animation: page-in 0.5s var(--ease-out) both;
+}
+
+/*
+ * `[hidden]` 必须显式压掉 `display: flex`。
+ * 浏览器给 `[hidden]` 的样式写在 UA 样式表里，优先级低于任何 class 选择器——
+ * 少了这条，登录 / 注册两个表单会同时显示。
+ */
+.auth__form[hidden],
+.auth__tabs[hidden],
+.auth__signed[hidden],
+.auth__legal[hidden] {
+  display: none;
+}
+
+.auth__tabs {
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: rgba(220, 236, 215, 0.6);
+}
+
+.auth__tab {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.auth__tab:hover {
+  color: var(--brand-strong);
+}
+
+.auth__tab.is-active {
+  background: #fff;
+  color: var(--brand-strong);
+  font-weight: 600;
+  box-shadow: 0 2px 10px rgba(31, 61, 43, 0.1);
+}
+
+.auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.auth__form-title {
+  margin: 0;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+}
+
+.auth__form-note {
+  margin: -0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.auth__alert {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.6rem;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+
+.auth__alert:empty {
+  display: none;
+}
+
+.auth__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.24rem;
+}
+
+.auth__label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.14em;
+}
+
+.auth__input {
+  padding: 0.52rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+  transition: border-color 0.2s var(--ease-out), box-shadow 0.2s var(--ease-out);
+}
+
+.auth__input:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(63, 125, 88, 0.16);
+}
+
+.auth__input[aria-invalid='true'] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.auth__input:disabled {
+  background: rgba(246, 250, 243, 0.9);
+  color: var(--muted);
+}
+
+.auth__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.auth__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.auth__error:empty {
+  display: none;
+}
+
+.auth__submit {
+  margin-top: 0.25rem;
+  padding: 0.64rem 1.3rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--brand);
+  color: #f4f8f1;
+  font: inherit;
+  font-size: 0.92rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background 0.24s var(--ease-out), box-shadow 0.24s var(--ease-out),
+    transform 0.24s var(--ease-out), opacity 0.24s ease;
+}
+
+.auth__submit:hover:not(:disabled),
+.auth__submit:focus-visible:not(:disabled) {
+  background: var(--brand-strong);
+  box-shadow: 0 10px 24px rgba(31, 61, 43, 0.22);
+  transform: translateY(-1px);
+}
+
+.auth__submit:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.auth__submit--ghost {
+  border-color: rgba(206, 224, 200, 0.95);
+  background: transparent;
+  color: var(--brand-strong);
+}
+
+.auth__submit--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.auth__switch {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.auth__switch-link {
+  margin-left: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.auth__agree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.1rem;
+}
+
+.auth__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+.auth__checkbox {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.18rem;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.auth__legal-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* 已登录时卡片换成这一块（在同一个卡片里，不跳页）。 */
+.auth__signed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 1.1rem 0 0.5rem;
+  text-align: center;
+}
+
+.auth__signed-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.2em;
+}
+
+.auth__signed-avatar {
+  margin-top: 0.3rem;
+}
+
+.auth__signed-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.auth__signed-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.auth__signed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+/* 协议正文：同一个卡片内切换，返回时表单原样还在。 */
+.auth__legal {
+  margin-top: 1rem;
+}
+
+.auth__legal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.auth__legal-back {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.auth__legal-back:hover,
+.auth__legal-back:focus-visible {
+  border-color: var(--brand);
+  background: #fff;
+}
+
+.auth__legal-stamp {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.auth__legal-title {
+  margin: 0 0 0.4rem;
+  font-size: 1.2rem;
+}
+
+.auth__legal-intro {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
+.auth__legal-body {
+  max-height: min(52vh, 26rem);
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.auth__legal-heading {
+  margin: 1rem 0 0.35rem;
+  font-size: 0.86rem;
+  letter-spacing: 0.06em;
+}
+
+.auth__legal-paragraph {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.85;
+}
+
+/* ---------------------------------------------------------------------------
+   个人中心（#account/profile、#account/home、#account/settings）
+--------------------------------------------------------------------------- */
+.account-page__inner {
+  width: min(46rem, 100%);
+}
+
+.account-page__head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.account-page__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.account-page__name {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+}
+
+.account-page__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.account-page__role {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--brand-strong);
+  font-size: 0.7rem;
+}
+
+.account-page__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 1.6rem 0 1.2rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.account-page__tab {
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.account-page__tab:hover,
+.account-page__tab:focus-visible {
+  background: var(--pill);
+  color: var(--brand-strong);
+}
+
+.account-page__tab.is-active {
+  background: var(--brand);
+  color: #f4f8f1;
+}
+
+.account-page__body {
+  padding: clamp(1.2rem, 3vw, 1.8rem);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 18px 44px rgba(31, 61, 43, 0.08);
+}
+
+.account-page__section-title {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+}
+
+.account-page__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.7rem 1.6rem;
+  margin: 0 0 1.2rem;
+}
+
+.account-page__term {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.account-page__value {
+  margin: 0;
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.account-page__value-note {
+  margin-left: 0.35rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.account-page__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.8;
+}
+
+.account-page__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: clamp(1.5rem, 4vw, 2.4rem);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 44px rgba(31, 61, 43, 0.08);
+}
+
+.account-page__badge {
+  margin: 0;
+  color: var(--brand);
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+}
+
+.account-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.account-page__action {
+  margin-top: 0.4rem;
+  padding: 0.6rem 1.2rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.24s var(--ease-out), border-color 0.24s var(--ease-out),
+    transform 0.24s var(--ease-out);
+}
+
+.account-page__action:hover {
+  border-color: var(--brand);
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 48rem) {
+  .auth__inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.4rem;
+  }
+
+  .auth__aside {
+    max-width: none;
+    text-align: center;
+  }
+}
+
+@media (max-width: 30rem) {
+  .auth__card {
+    padding: 1.15rem;
+    border-radius: 1.2rem;
+  }
+
+  .auth__legal-body {
+    max-height: 46vh;
+  }
+
+  .account-page__facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+
+  .account-page__term {
+    margin-top: 0.6rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth__card {
+    animation: none;
+  }
+
+  .auth__tab,
+  .auth__submit,
+  .auth__input,
+  .account-page__tab,
+  .account-page__action {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   作品列表（#works）与作品详情（#works/<slug>）
+
+   这两页是「阅读型」页面：不做钉住、不做时间轴，只借用全站的调色板与胶囊材质。
+   材质来源统一是 `.page__back` / `.work__skip` 那一套（毛玻璃浅底 + 品牌绿描边 +
+   999px 圆角），别在这里另起一套按钮。
+--------------------------------------------------------------------------- */
+
+.works-index {
+  position: relative;
+  min-height: 100lvh;
+  padding: calc(var(--header-height) + clamp(2rem, 6vw, 4rem)) clamp(1.25rem, 5vw, 4rem)
+    clamp(4rem, 10vw, 7rem);
+}
+
+.wk-inner {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  width: min(78rem, 100%);
+  margin: 0 auto;
+  animation: wk-in 0.5s var(--ease-out) both;
+}
+
+@keyframes wk-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wk-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: clamp(1rem, 3vw, 2rem);
+}
+
+.wk-kicker {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.wk-title {
+  margin: 0.35rem 0 0;
+  color: var(--text);
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+
+.wk-stats {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  letter-spacing: 0.04em;
+}
+
+.wk-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.wk-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.1);
+  transition: border-color 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out);
+}
+
+.wk-search:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.16);
+}
+
+.wk-search__icon {
+  color: var(--brand-strong);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.wk-search__input {
+  width: clamp(10rem, 22vw, 15rem);
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.wk-search__input::placeholder {
+  color: var(--muted);
+}
+
+.wk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.wk-chip {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: background 0.28s var(--ease-out), border-color 0.28s var(--ease-out),
+    color 0.28s var(--ease-out);
+}
+
+.wk-chip:hover,
+.wk-chip:focus-visible {
+  border-color: var(--brand);
+  color: var(--brand-strong);
+}
+
+.wk-chip.is-active {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #f6faf3;
+}
+
+.wk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  gap: clamp(1rem, 2vw, 1.6rem);
+}
+
+.wk-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(31, 61, 43, 0.06);
+  transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out),
+    border-color 0.35s var(--ease-out);
+}
+
+.wk-card:hover,
+.wk-card:focus-visible {
+  border-color: rgba(63, 125, 88, 0.5);
+  box-shadow: 0 16px 36px rgba(31, 61, 43, 0.14);
+  transform: translateY(-4px);
+}
+
+.wk-card__cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #dfeadb;
+}
+
+.wk-card__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s var(--ease-out);
+}
+
+.wk-card:hover .wk-card__cover img {
+  transform: scale(1.04);
+}
+
+.wk-card__cover.is-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--cover-hue, 150) 32% 88%),
+    hsl(calc(var(--cover-hue, 150) + 14) 30% 76%)
+  );
+}
+
+.wk-card__glyph {
+  color: rgba(31, 61, 43, 0.4);
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.wk-card__mode {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(15, 36, 23, 0.72);
+  color: #eef6ee;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+}
+
+.wk-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.wk-card__title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.06rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.wk-card__summary {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.wk-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+}
+
+.wk-card__category {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--brand-strong);
+}
+
+.wk-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wk-card__tag {
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.wk-state {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.8;
+}
+
+.wk-state[hidden] {
+  display: none !important;
+}
+
+.wk-state.is-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  color: #8f3a26;
+}
+
+.wk-retry {
+  padding: 0.35rem 1rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.9);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: background 0.28s var(--ease-out), border-color 0.28s var(--ease-out);
+}
+
+.wk-retry:hover,
+.wk-retry:focus-visible {
+  border-color: var(--brand);
+  background: #fff;
+}
+
+/* ---------- 作品详情 ---------- */
+
+.wdetail {
+  position: relative;
+  min-height: 100lvh;
+  padding: calc(var(--header-height) + clamp(1.5rem, 4vw, 2.5rem)) clamp(1.25rem, 5vw, 4rem)
+    clamp(4rem, 10vw, 7rem);
+}
+
+.wdetail__stage {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 3vw, 2.4rem);
+  width: min(68rem, 100%);
+  margin: 0 auto;
+  animation: wk-in 0.45s var(--ease-out) both;
+}
+
+.wdetail__crumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+}
+
+.wdetail__crumb a {
+  color: var(--brand-strong);
+  text-decoration: none;
+}
+
+.wdetail__crumb a:hover,
+.wdetail__crumb a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wdetail__crumb-current {
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.wdetail__title {
+  margin: 0.6rem 0 0;
+  color: var(--text);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.03em;
+}
+
+/* 封面横幅：与列表卡的缩略图是同一张图，进来之后有个视觉延续。 */
+.wdetail__cover {
+  margin: 0;
+  overflow: hidden;
+  aspect-ratio: 21 / 9;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #dfeadb;
+  box-shadow: 0 10px 30px rgba(31, 61, 43, 0.1);
+}
+
+.wdetail__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wdetail__summary {
+  max-width: 46rem;
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 1.02rem;
+  line-height: 1.8;
+}
+
+.wdetail__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wdetail__tag {
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--brand-strong);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+}
+
+.wdetail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+
+.wdetail__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  transition: background 0.28s var(--ease-out), border-color 0.28s var(--ease-out),
+    box-shadow 0.28s var(--ease-out), transform 0.28s var(--ease-out);
+}
+
+.wdetail__pill:hover,
+.wdetail__pill:focus-visible {
+  border-color: var(--brand);
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+  transform: translateY(-2px);
+}
+
+.wdetail__pill.is-primary {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #f6faf3;
+}
+
+.wdetail__pill.is-primary:hover,
+.wdetail__pill.is-primary:focus-visible {
+  background: var(--brand-strong);
+}
+
+.wdetail__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15rem;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: start;
+}
+
+.wdetail__main {
+  min-width: 0;
+}
+
+.wdetail__side {
+  position: sticky;
+  top: calc(var(--header-height) + 1.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.wdetail__facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem 0.9rem;
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.wdetail__facts dt {
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.wdetail__facts dd {
+  margin: 0;
+  color: var(--text);
+}
+
+.wdetail__side-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.wdetail__gallery {
+  margin-top: clamp(2rem, 5vw, 3rem);
+}
+
+.wdetail__gallery-title {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.wdetail__shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: 0.8rem;
+}
+
+.wdetail__shot {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #dfeadb;
+}
+
+.wdetail__shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 0.5s var(--ease-out);
+}
+
+.wdetail__shot:hover img {
+  transform: scale(1.03);
+}
+
+.wdetail__notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: clamp(2rem, 8vw, 5rem) 0;
+}
+
+.wdetail__notice.is-loading {
+  align-items: center;
+}
+
+.wdetail__notice-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+/* 开发者模式：整页 iframe，站内只剩一枚返回胶囊 */
+
+.wdetail--dev {
+  min-height: 0;
+  padding: 0;
+}
+
+.wdetail--dev .wdetail__stage {
+  width: 100%;
+  margin: 0;
+  animation: none;
+}
+
+.wdetail__frame-wrap {
+  position: relative;
+  width: 100%;
+  height: calc(100lvh - var(--header-height));
+  margin-top: var(--header-height);
+  background: #0f2417;
+}
+
+.wdetail__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.wdetail__back {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.1rem 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(15, 36, 23, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f2f7f0;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  transition: background 0.28s var(--ease-out), transform 0.28s var(--ease-out);
+}
+
+.wdetail__back::before {
+  content: "←";
+  margin-right: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.wdetail__back:hover,
+.wdetail__back:focus-visible {
+  background: rgba(15, 36, 23, 0.92);
+  transform: translateY(-1px);
+}
+
+/* ---------- README 排版（`content/markdown.ts` 的产物） ---------- */
+
+.md-body {
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.85;
+}
+
+.md-body > *:first-child {
+  margin-top: 0;
+}
+
+.md-body p {
+  margin: 0 0 1rem;
+  color: #294a36;
+}
+
+.md-body h2,
+.md-body h3,
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  margin: 2rem 0 0.75rem;
+  color: var(--text);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+.md-body h2 {
+  font-size: 1.4rem;
+}
+
+.md-body h3 {
+  font-size: 1.18rem;
+}
+
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  font-size: 1rem;
+}
+
+.md-body a {
+  color: var(--brand-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.md-body ul,
+.md-body ol {
+  margin: 0 0 1rem;
+  padding-left: 1.4rem;
+}
+
+.md-body li {
+  margin: 0.3rem 0;
+}
+
+.md-body code {
+  padding: 0.1em 0.38em;
+  border-radius: 6px;
+  background: rgba(63, 125, 88, 0.1);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+
+.md-body pre {
+  margin: 0 0 1.2rem;
+  padding: 1rem 1.1rem;
+  overflow: auto;
+  border-radius: 12px;
+  background: #0f2417;
+  color: #e9f2e9;
+}
+
+.md-body pre code {
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: 0.84rem;
+  line-height: 1.7;
+}
+
+.md-body blockquote {
+  margin: 0 0 1.2rem;
+  padding: 0.2rem 0 0.2rem 1rem;
+  border-left: 2px solid var(--brand);
+  color: var(--muted);
+}
+
+.md-body img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.2rem 0;
+  border-radius: 10px;
+}
+
+.md-body hr {
+  margin: 2rem 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.md-body__empty {
+  color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .wdetail__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wdetail__side {
+    position: static;
+    order: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wk-inner,
+  .wdetail__stage {
+    animation: none;
+  }
+
+  .wk-card,
+  .wk-card__cover img,
+  .wdetail__pill,
+  .wdetail__back,
+  .wdetail__shot img {
+    transition: none;
+  }
+}

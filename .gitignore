@@ -1,0 +1,61 @@
+# ── 依赖与构建产物 ────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Vite 缓存
+.vite/
+
+# ── 环境变量：真实凭据只留在本机 ──────────────────────────────────
+# 复制 .env.example 得到自己的 .env，仓库里永远不要提交它
+.env
+.env.local
+.env.*.local
+
+# ── 日志 ─────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── 运行时数据（站点账号、作品、上传图片、会话密钥）───────────────
+# 见 apps/api/src/works/store.ts。想给仓库放一份种子数据时，再单独放行某个文件
+apps/api/data/
+
+# 管理后台删除文件后的回收站（想彻底删就手动清这个目录）
+.admin-trash/
+
+# ── 本地工具与开发期成图 ─────────────────────────────────────────
+# .workbuddy/tmp 里有本地浏览器 profile、调试脚本与本机绝对路径；shots 是开发期截图
+.workbuddy/
+shots/
+
+# ── 编辑器 / 系统 ────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# ── 原始大图：只作素材保留，不随站点发布（发布用的是 apps/web/public 下的缩小版）──
+/apps/web/sources/
+
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# ── Java / Go ───────────────────────────────────────────────────
+*.class
+target/
+*.exe
+
+# ── 临时文件 ────────────────────────────────────────────────────
+*.tmp

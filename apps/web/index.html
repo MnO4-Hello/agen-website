@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>阿根</title>
+    <!-- 跑马灯的压缩显示体。preload 让它在解析阶段就开始取，既避免首帧闪回系统字体，
+         也保证字体在 `load` 之前就绪（幽灵字母的份数是按原生字宽算的，字宽一变份数就变）。
+         字体请求必须带 crossorigin，否则会重复下载一次。 -->
+    <link
+      rel="preload"
+      href="/fonts/archivo-narrow-700.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

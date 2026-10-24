@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      隐藏的管理员入口。**这个地址不在站内任何地方出现**：导航栏没有它、任何页面都不链它、
+      sitemap 里也不会有（本站目前没有 sitemap）。再加一条 noindex，避免被外部链接带进来后
+      被搜索引擎收录。
+
+      「藏起来」只是少被人撞见，不是保护——真正的门是账号密码，校验在后端
+      apps/api/src/routes/admin.ts（凭据来自 .env，未配置就整体 503）。
+    -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <title>管理后台 · 阿根</title>
+  </head>
+  <body>
+    <main id="admin-root" class="admin"></main>
+    <script type="module" src="/src/admin/main.ts"></script>
+  </body>
+</html>

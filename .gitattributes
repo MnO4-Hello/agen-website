@@ -1,0 +1,19 @@
+# 默认按文本处理并统一成 LF：.editorconfig 要求 end_of_line = lf，
+# 而 Windows 上 core.autocrlf 可能是 true，不写这行 checkout 出来会变 CRLF。
+* text=auto eol=lf
+
+# 二进制：禁止行尾转换，也不做文本 diff / merge
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.avif binary
+*.woff2 binary
+*.pdf binary
+
+# Windows 脚本保留 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
