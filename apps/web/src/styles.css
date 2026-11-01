@@ -4719,8 +4719,13 @@ html.lenis body {
   top: -1px;
   left: -1px;
   z-index: 1;
-  width: calc(100% + 2px);
-  height: calc(100% + 2px);
+  /* 只往**左上**各外扩 1px（盖住网格线与区块边界的接缝）。
+     右下绝不能再外扩：`left:-1px` 配 `width:100%+2px` 会让右边缘正好比父级多 1px，
+     而绝对定位元素是**计入**文档滚动宽度的（`position: fixed` 的才不计入），
+     整页因此多出 1px —— 表现为首屏底部凭空冒出一条横向滚动条。
+     想外扩右/下的话，得换个裁切容器，别直接加宽度。 */
+  width: calc(100% + 1px);
+  height: calc(100% + 1px);
 }
 
 .s-cta .s__grid__svg {
