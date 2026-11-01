@@ -17,6 +17,7 @@
     "start": "npm run start --workspace @agen/api",
     "preview": "npm run preview --workspace @agen/web",
     "typecheck": "npm run typecheck --workspace @agen/web && npm run typecheck --workspace @agen/api",
+    "deploy": "git push deploy main && ssh agen-server bash /srv/agen-website/deploy/remote-deploy.sh",
     "user:create": "npm run user:create --workspace @agen/api",
     "clean": "rimraf \"apps/*/dist\" \"apps/web/node_modules/.vite\""
   },

@@ -20,6 +20,11 @@ logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
+
+# ── 部署记号 ─────────────────────────────────────────────────────
+# deploy/remote-deploy.sh 用它记「上次 npm ci 时的 package-lock 哈希」，
+# 变了才重装依赖。属于运行时状态，不该进库。
+.deploy/
 yarn-error.log*
 
 # ── 运行时数据（站点账号、作品、上传图片、会话密钥）───────────────
