@@ -27,9 +27,9 @@
 1. 前端是**纯静态**产物，不需要 Node 去跑；真正常驻的只有后端一个进程。
 2. 所有业务数据（含图片）都在 `apps/api/data/` 这个**被 gitignore 的目录**里。
 3. 后端**只能单实例**。数据层是 JSON 文件 + 进程内缓存，开两个进程会互相覆盖写。
-4. ⚠️ **不要用 `git clone` 部署。** GitHub 上的 main 停在 2026-10-24 的提交，而本地的博客、
-   留言板、账户管理等模块**还没有提交**（`apps/api/src/blog/`、`message/`、`admin/guard.ts`
-   都是未跟踪状态）。克隆下来会是个残缺的旧站。正确做法是本地打包上传，见第 3 步。
+4. 仓库现在是完整的（2026-11-01 把作品 / 账号 / 博客 / 留言 / 管理后台一并提交并推送），
+   `git clone` 能拿到整套代码；但这台机器到 GitHub 的连通性很差，**日常更新走
+   `npm run deploy`（推送即部署），不要指望在服务器上 `git pull`**，见附录 A。
 
 下文命令里的 `服务器IP` 替换成你的公网 IP。
 
@@ -166,6 +166,15 @@ su - agen -c "pm2 restart agen-api"
 
 ### 改了代码怎么更新
 
+**日常更新只用一条命令**（正文见附录 A）：
+
+```bash
+npm run deploy        # push 到服务器 → 装依赖（必要时）→ 构建 → 重启 → 自检
+```
+
+只有在这台机器还没配好 git（比如刚按本文档重建过）时，才用下面这套「打包上传」的
+老办法过渡：
+
 ```bash
 # 本地
 npm run build
@@ -218,20 +227,50 @@ crontab -e -u agen     # 写入下面一行（每天 4:10）
 
 ---
 
-## 附录 A：等仓库同步之后，改用 git 部署
+## 附录 A：日常更新（推送即部署）
 
-等把本地的博客/留言/账户模块提交并推上去之后，`git clone` 才是可用的正路：
+`/srv/agen-website` 现在是一个正常的 git 检出（`origin` = GitHub），并额外配了
+`receive.denyCurrentBranch=updateInstead` —— 本地 `git push` 会把新提交**直接推进
+线上工作区**，所以更新只有一条命令：
 
 ```bash
-useradd -m -s /bin/bash agen
-mkdir -p /srv && chown agen:agen /srv
-su - agen
-cd /srv && git clone https://github.com/MnO4-Hello/agen-website.git
-cd agen-website && npm ci && npm run build
+npm run deploy
+# = git push deploy main && ssh agen-server bash /srv/agen-website/deploy/remote-deploy.sh
 ```
 
-之后的更新就变成 `git pull && npm ci && npm run build && pm2 restart agen-api`。
-`deploy/` 目录里的两份配置（`nginx-agen.conf`、`server-install.sh`）就是按这条路准备的。
+`deploy/remote-deploy.sh` 依次做：比对 `package-lock.json` 哈希（变了才 `npm ci`，
+没变跳过，省掉最慢也最危险的步骤）→ `npm run build` → `pm2 restart agen-api --update-env`
+→ `pm2 save` → 健康自检（起不来会直接报错并打印 `pm2 list`）。
+
+**为什么不在这台机器上 `git pull`**：实测 ECS 到 `github.com:443` 三次握手只成功一次，
+HTTPS 请求经常 10s 超时，`git pull` 会随机卡死；而 `git push` 的成败本地立刻可见。
+`origin` 仍然留着，网络好的时候 `git pull origin main` 也能用，只是别指望它。
+
+**回滚**：
+
+```bash
+ssh agen-server 'cd /srv/agen-website && git reset --hard <旧提交>'
+ssh agen-server bash /srv/agen-website/deploy/remote-deploy.sh
+```
+
+重建机器时才需要的一次性准备（当前这台已经配好）：
+
+```bash
+# 服务器侧
+dnf -y install git
+su - agen -c 'cd /srv/agen-website && git init -b main \
+  && git remote add origin https://github.com/MnO4-Hello/agen-website.git \
+  && git fetch origin main && git reset --hard origin/main \
+  && git config receive.denyCurrentBranch updateInstead'
+
+# 本地侧（~/.ssh/config 里 agen-server = User agen + 部署密钥）
+git remote add deploy ssh://agen-server/srv/agen-website
+```
+
+`agen` 用户的 `~/.ssh/authorized_keys` 里要放同一把公钥（push 以 agen 身份落盘，
+`npm ci` / `npm run build` 才不会因为文件属主是 root 而失败）。
+
+`deploy/` 里的另外两份配置（`nginx-agen.conf`、`server-install.sh`）是首次装机用的。
 
 ## 附录 B：以后要加域名 + HTTPS
 
