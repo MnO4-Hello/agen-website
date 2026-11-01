@@ -10,11 +10,12 @@
 再接“我会什么？”板块——沿用同一层浅绿底，标题从上方落下，左侧先由线条画出一张牌
 再散成五张扇形卡牌，右侧线框里粒子团汇聚成牌面。
 
-导航栏的五个板块现在都是**真实页面**（哈希路由）：主页是上面那条长长的滚动叙事，
-作品 / 博客 / 留言 / 关于我**已经建好骨架但还没填内容**（占位页）。另有一个
+导航栏的五个板块现在都是**真实页面**（哈希路由）：主页是上面那条长长的滚动叙事；
+作品分列表与详情；博客是帖子列表 + 详情 + 游客/登录都能回的回复区；留言板是留言列表
+（支持图片与 Markdown 两种模式）；只有「关于我」还是占位页。另有一个
 **不在任何导航里的管理后台**：地址 `/admin.html`，账号密码登录，登录后左侧是功能卡、
-右侧是内容——目前有「控制台」（实时看后端进程输出）、「文件管理」（白名单目录的增删改）
-与「作品」（列表 / 编辑，模板与开发者两种模式）。
+右侧是内容——目前有「控制台」（实时看后端进程输出）、「文件管理」（白名单目录的增删改）、
+「作品」（列表 / 编辑）、「内容」（帖子 / 分类 / 回复）与「留言」（审核与站长回复）。
 
 Windows 与 Linux 均可运行。
 
@@ -155,18 +156,18 @@ npm run dev
 | 地址         | 页面                                                     |
 | ------------ | -------------------------------------------------------- |
 | `#home`      | 主页（缺省；空哈希 / 未知哈希也回落这里）                 |
-| `#works`     | 作品（占位页）                                            |
-| `#blog`      | 博客（占位页）                                            |
-| `#message`   | 留言（占位页）                                            |
+| `#works`     | 作品列表；`#works/<slug>` 是作品详情                       |
+| `#blog`      | 帖子列表；`#blog/<slug>` 是帖子详情 + 回复                |
+| `#message`   | 留言板（图片 + 简单 / Markdown 双模式，每条可回复）        |
 | `#about`     | 关于我（占位页）                                          |
 | `#login`     | 登录 / 注册（`#login/register` 直达注册 tab）            |
 | `#account/<tab>` | 个人中心 / 我的主页 / 设置（`profile` / `home` / `settings`） |
 
 - **为什么用哈希**：产物是纯静态的，路径式路由要求每台静态服务器都配 rewrite，
   否则刷新 `/blog` 直接 404；哈希在任何 host 上刷新、分享、按后退都照常工作。
-- 四个标签页目前**只有骨架**：`pages/page-shell.ts` 的通用外壳（「筹备中」小标 +
+- 「关于我」目前**只有骨架**：`pages/page-shell.ts` 的通用外壳（「筹备中」小标 +
   标题 + 一句说明 + 回主页），文案在 [content/pages.ts](apps/web/src/content/pages.ts)。
-  要填内容时，把对应的 `pages/xxx.ts` 换成自己的布局即可。
+  其余四页都已接管成真实模块（`pages/works.ts` / `pages/blog.ts` / `pages/message.ts`）。
 - **换页 = 销毁旧视图 + 建新视图**：首页那条滚动叙事（含 34 张卡的时间轴、枫叶画布）
   在有 `dispose()` 的模块里整块拆掉，回到主页再重建，所以切页不会留下旧视图，
   也不会让动画在别的页面上继续跑。滚动位置在换页时复位到页顶（首屏不清零，
@@ -191,8 +192,11 @@ npm run dev
 | -------- | ----------------------------------------------- | ---------------------------- |
 | 游客     | 未登录                                          | 浏览全部公开页面             |
 | 普通用户 | 在 `#login/register` 注册                        | 账号体系内的一切本人操作     |
-| 管理员   | 用下面的 CLI 建，或手改 `data/users.json` 的 role | 同上，且能登录 `/admin.html` |
-| 站长     | 同上（`--role owner`）                           | 同上                          |
+| 管理员   | 后台「账户」里由站长指派，或 CLI `--role admin`  | 进后台、管账号、审核内容；**不能发博客 / 作品 / 改徽章** |
+| 站长     | 同上（`--role owner`），第一个站长用 CLI 建      | 全部权限（含内容与徽章）      |
+
+> 三级权限的细则见下面「[账户与权限](#账户与权限)」一节。核心一句话：
+> **管理员是帮忙看场子的人，站长是能发东西的人。**
 
 - **数据在 `apps/api/data/users.json`**（该目录被 `.gitignore` 忽略，同目录有 `.bak`）。
   它不在仓库里，**换机器 / 清数据之后要重新建账号**。
@@ -224,8 +228,9 @@ npm run user:create -- \
 `/admin.html` 的登录仍然认 `.env` 里的 `ADMIN_USER` / `ADMIN_PASSWORD`，**另外**也接受
 `users.json` 里 role 为 `admin` / `owner` 的账号（签发同一种管理 token，有效期压到 ≤2 小时）。
 
-已知限制：管理 token 是无状态签名，账号在有效期内被降级或停用后，**已签发**的管理会话
-仍然可用（最长 2 小时）。访客会话没这个问题——`/api/auth/session` 每次都回表查角色与状态。
+管理会话是**回表校验**的：`/api/admin/*` 每次请求都由 `admin/guard.ts` 的守卫重新确认
+「这个人现在还是不是管理员」，所以停用 / 封禁 / 降级 / 删号**立即生效**，不必等 token 过期。
+（访客会话同样每次回表；两边的判定都走 `users/moderation.ts` 的 `isActive()`。）
 
 ### 平台差异
 
@@ -258,7 +263,7 @@ npm run user:create -- \
 | ---- | -------------------- | ------------------------------------------------- |
 | GET  | `/api/hello`         | 返回 `{ message, service, timestamp }`            |
 | GET  | `/api/health`        | 返回 `{ status, uptime }`                         |
-| GET  | `/api/admin/session` | 是否已登录 `{ authenticated, user? }`             |
+| GET  | `/api/admin/session` | 是否已登录 `{ authenticated, user?, role?, source? }`             |
 | POST | `/api/admin/login`   | `{ username, password }` → 种下会话 cookie         |
 | POST | `/api/admin/logout`  | 清掉会话 cookie                                   |
 | GET  | `/api/admin/console/logs`   | 日志快照 `{ logs, stats }`（`?after=&limit=`） |
@@ -283,6 +288,27 @@ npm run user:create -- \
 | POST | `/api/admin/works/:id/publish` | 发布 / 下线 `{ published }`                  |
 | POST | `/api/admin/works/reorder`  | 按 id 顺序重排（必须是全量置换）                |
 | POST | `/api/admin/works/media`    | 上传作品图片（裸 `octet-stream`，≤ 25 MB）      |
+| GET  | `/api/messages`             | 留言列表（`?cursor=&limit=`，楼层号降序）       |
+| POST | `/api/messages`             | 发留言 `{ mode, body, images, captcha? }`        |
+| POST | `/api/messages/:id/replies` | 回复某条留言（同上，只有纯文本 + 图片）          |
+| GET  | `/api/messages/captcha`     | 领一道工作量证明题（游客必过）                  |
+| POST | `/api/messages/media`       | 上传留言图片（裸 `octet-stream`，≤ 5 MB）       |
+| GET  | `/api/messages/media/:file` | 留言图片直链（内容哈希命名，可长缓存）          |
+| GET  | `/api/admin/messages`       | 全部留言（含已隐藏，`?status=&q=&cursor=`）     |
+| POST | `/api/admin/messages/:id/status` | 隐藏 / 恢复 `{ status }`（软删，无硬删）   |
+| POST | `/api/admin/messages/:id/replies` | 以站长身份回复 `{ body }`（仅站长）       |
+| GET  | `/api/admin/accounts`       | 账号列表（`?q=&role=&state=&page=&size=`，含 `can.*` 能力位） |
+| GET  | `/api/admin/accounts/:id`   | 单个账号                                        |
+| POST | `/api/admin/accounts/:id/role` | 改角色 `{ role }`（管理员不能设 `owner`）   |
+| POST | `/api/admin/accounts/:id/ban`  | 封禁 / 解封 `{ days: 1\|3\|7\|30\|0, reason, lift? }` |
+| POST | `/api/admin/accounts/:id/mute` | 禁言 / 解禁（同上，`0` = 永久）           |
+| GET  | `/api/admin/badges`         | 徽章目录（含已下架，带 `grantCount`）           |
+| POST | `/api/admin/badges`         | 新建徽章（**仅站长**）                          |
+| PUT  | `/api/admin/badges/:id`     | 编辑徽章（**仅站长**）                          |
+| DELETE | `/api/admin/badges/:id`   | 下架（软删，已授予的人不收回）                  |
+| POST | `/api/admin/badges/:id/restore` | 恢复下架                                    |
+| POST | `/api/admin/accounts/:id/badges` | 授予 `{ badgeId }`（**仅站长**）          |
+| DELETE | `/api/admin/accounts/:id/badges/:badgeId` | 撤销（软撤销，留审计）      |
 
 开发时前端通过 Vite 代理访问 `http://localhost:5173/api/*` → 后端 `:3000`，
 因此前端代码里统一使用相对路径 `/api/...`，生产环境交给反向代理即可，无需改代码。
@@ -335,7 +361,10 @@ npm run dev                       # 前端 5173 + 后端 3000
 - 前端通过 `GET /api/admin/console/stream`（SSE）实时渲染，断线由浏览器自动重连；
   每次 `open` 都按当前 `lastId` 补一次快照并按 id 去重，所以断线期间的行不会丢也不会重复。
 - 顶部的 PID / 已运行 / 内存 / Node 版本来自每 2 秒一次的 `stats` 事件。
-- URL 参数 `?view=console|files|works` 可以直接落到某个功能（截图、书签都方便）。
+- URL 参数 `?view=console|files|works|content|guestbook|accounts|badges` 可以直接落到某个功能
+  （截图、书签都方便）。加新视图时**三处都要改**：`shell.ts` 的 `NAV_ITEMS` 与
+  `DEFAULT_VIEWS`、`admin/main.ts` 的 `DEEP_LINKS` 与 `?preview=` 白名单、`preview.ts` 的类型联合
+  ——漏一处就静默回落控制台。
 
 ### 文件管理
 
@@ -373,6 +402,56 @@ npm run dev                       # 前端 5173 + 后端 3000
 - 后台 URL：`?view=works` 直达；`?preview=works`（仅 DEV）用假数据看版面，
   加 `&edit=<slug>` 会直接打开编辑器。
 
+### 账户与权限
+
+后台「账户」（`?view=accounts`）是所有人的账号列表：搜索（用户名 / 昵称 / 邮箱，NFKC 归一，
+全角也能搜到）、按角色与状态筛选、分页。每行可以展开一件事来做：
+
+| 动作 | 谁可以做 | 效果 |
+| --- | --- | --- |
+| 封禁 1 / 3 / 7 / 30 天或永久 | 站长、管理员（不能动站长、不能动自己） | 不能登录；**已登录的会话下一次请求就失效** |
+| 禁言（同样的档位） | 同上 | 能登录、能看帖，但发帖 / 回复 / 留言 / 传图一律 `403 muted` |
+| 改角色 `user` / `admin` / `owner` | 站长可全面；管理员改不到 `owner` | 只有站长能把人设为站长；且至少留一个站长 |
+| 授予 / 撤销徽章 | **只有站长** | 见下一节 |
+
+- 三级身份：`owner` 站长 > `admin` 管理员 > `user`。`.env` 的 `ADMIN_USER` 视为最高权站长，
+  **没有对应的 users.json 记录**，所以任何账号操作都碰不到它（这是兜底）。
+- 管理员能进后台、管账号、审核帖子与留言；但**不能发博客、不能发布作品、不能改徽章、
+  不能以站长身份回复留言**。硬限制在 [admin/guard.ts](apps/api/src/admin/guard.ts) 的
+  `OWNER_ONLY` 路由表里，前端只是按 `role` 把按钮收起来（两层都要有）。
+- 守卫是一个挂在根实例上的 `onRequest` 钩子（`installAdminGuard()`，**必须早于所有
+  `app.register(路由)`**，否则静默失效）：`/api/admin/*` 每次请求都回表确认「这个人现在还是
+  不是管理员」，所以停用 / 封禁 / 降级**立即生效**——顺手修掉了「降级后最多还能用 2 小时」
+  的旧隐患。它把 `AdminActor` 挂到 `request.adminActor`，业务路由用 `currentActor(request)` 取。
+- 处罚存在 `UserRecord.moderation`：`{ ban, mute }`，每条 `Sanction` 是
+  `{ until, reason, by, bySource, at }`，`until === null` 即永久。到期靠
+  [users/moderation.ts](apps/api/src/users/moderation.ts) 的纯函数按当前时间判断，
+  **没有定时任务**。判定一律走 `isActive()` / `isMuted()`，不要直读 `record.status`：
+  限期封禁**不改** `status`（改了就等于封号），禁言更是绝不碰 `status`。
+- 改角色**不动 `updatedAt`**：它同时是设置页的乐观锁游标，管理员改角色不该让用户正在编辑的
+  草稿突然「过期」。
+
+### 徽章
+
+站内有三类徽章，长得**必须不一样**——用户能自建徽章，如果三类长得一样，任何人五分钟就能
+自封「官方认证」：
+
+| 类型 | 字段 | 谁决定 | 外观 |
+| --- | --- | --- | --- |
+| 系统徽章 | `systemBadges` | 服务端按 role / 注册年份算出来 | 深色实心 + 「系统」角标 |
+| 授予徽章 | `grantedBadges` | **站长**在后台定义目录并逐人授予 | 金色描边 + 「授予」角标 |
+| 自建徽章 | `profile.badges` | 用户自己在设置里造 | 细描边，无角标 |
+
+- 授予数据在 `apps/api/data/badges.json`（gitignore；`{ badges: 目录, grants: 授予记录 }`），
+  与 `profile` **完全隔离**——用户 `PATCH /api/account/profile` 从结构上就碰不到它。
+- 目录是**软下架**（`archivedAt`）：下架后不再出现在可授予列表里，但已授予的人**不会掉徽章**；
+  撤销是**软撤销**（`revokedAt` / `revokedBy`），保留审计线索。
+- 授予徽章**不受** `privacy.badges` 约束（与系统徽章一致）：站长背书是公开身份。这条写在
+  [users/granted-badges.ts](apps/api/src/users/granted-badges.ts) 的注释里，别「顺手修成受隐私控制」。
+- 后台：`?view=badges` 管目录（这项导航只有站长看得到）；授予在某个人身上（「账户」→「徽章」）。
+  DEV 假数据：`?preview=accounts`、`?preview=badges`，加 `&as=admin` 可切到管理员视角
+  （「作品」与「徽章」两项导航会消失）。
+
 ## 端口配置
 
 复制 `.env.example` 为 `.env` 后按需修改 `PORT`（后端）与 `WEB_PORT`（前端），
@@ -383,7 +462,9 @@ npm run dev                       # 前端 5173 + 后端 3000
 - **新增接口**：在 [apps/api/src/routes/](apps/api/src/routes/) 下加路由文件，
   然后在 [app.ts](apps/api/src/app.ts) 中注册。管理接口开头先写
   `if (!requireAdmin(request, reply)) return;`（`apps/api/src/admin/session.ts`），
-  别自己判 cookie——少写一行就是少一个漏洞。
+  别自己判 cookie——少写一行就是少一个漏洞。需要「当前是谁、什么档位」时用
+  `currentActor(request)`（`admin/guard.ts`）；只有站长能做的写接口，还要把
+  `方法 + 路由模板` 加进 `guard.ts` 的 `OWNER_ONLY`（那是第二道锁，别只靠视图里藏按钮）。
 - **给管理后台加一个功能**：在 [apps/web/src/admin/views/](apps/web/src/admin/views/)
   下实现 `AdminView`（`{ element, dispose }`，`dispose` 必须把定时器 / SSE / 监听清干净），
   然后在 `views/shell.ts` 的 `NAV_ITEMS` 加一项、在 `DEFAULT_VIEWS` 里注册；文案与请求

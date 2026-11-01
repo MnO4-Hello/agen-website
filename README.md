@@ -91,6 +91,7 @@ npm run user:create -- --username yourname --nickname 昵称 --email you@example
 | `ADMIN_USER` / `ADMIN_PASSWORD` / `ADMIN_SESSION_SECRET` | 管理后台登录。**三项缺任何一项，`/api/admin/*` 整体返回 503**（fail-closed：忘配应该是打不开门） |
 | `USER_SESSION_SECRET` | 访客会话签名密钥；不配会自动生成到 `apps/api/data/.session-secret` |
 | `ADMIN_FILE_ROOTS` | 文件管理能碰的目录白名单（`名称=相对路径`） |
+| `SITE_MODE` | `full`（默认）/ `display` / `maintenance`。备案形态开关：`display` 只留首页 / 作品 / 关于，博客、留言板、注册登录整体下线（前端不画入口，后端返回 404）。见 [docs/DEPLOY.md 附录 C](docs/DEPLOY.md) |
 
 运行时数据（`apps/api/data/`：账号、作品、上传的图片、会话密钥）与 `.env` 都不进仓库，
 **换机器要重新建账号**。
