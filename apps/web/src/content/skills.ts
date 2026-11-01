@@ -22,6 +22,12 @@ export const SKILLS_RELEASE_TEXT = '放下';
 /** 胶囊按钮的无障碍名称。 */
 export const SKILLS_RELEASE_LABEL = '放下卡牌';
 
+/** 入场播放期间右下角那枚「跳过」胶囊上的文字（与「我是谁？」的跳过按钮同一套）。 */
+export const SKILLS_SKIP_LABEL = '跳过';
+
+/** 「跳过」的无障碍说明：只说清它做什么，不承诺时长。 */
+export const SKILLS_SKIP_HINT = '跳过入场动画';
+
 // -- 卡面内容 ---------------------------------------------------------------
 
 /**

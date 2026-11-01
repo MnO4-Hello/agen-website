@@ -14,7 +14,7 @@
  * `load` 附近抓帧），所以 `createWorkDetailPage()` 只挂一个骨架，数据到了再替换内容。
  */
 
-import { renderMarkdown } from '../content/markdown';
+import { renderMarkdown } from '../shared/markdown';
 import type { RouteView } from '../router';
 import { fetchWork, type WorkDetail } from '../works/api';
 import { formatMonth } from '../works/present';

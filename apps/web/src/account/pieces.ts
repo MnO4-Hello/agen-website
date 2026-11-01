@@ -10,7 +10,7 @@
  */
 
 import { icon, type IconName } from '../admin/ui';
-import type { CustomBadge, SystemBadge } from './types';
+import type { CustomBadge, GrantedBadge, SystemBadge } from './types';
 
 type Child = Node | string | null | undefined;
 
@@ -376,6 +376,30 @@ export function customBadgeChip(badge: CustomBadge, onRemove?: () => void): HTML
   ]);
   node.style.setProperty('--badge-color', badge.color);
   if (onRemove) node.append(accIconButton('close', `删除徽章 ${badge.label}`, onRemove));
+  return node;
+}
+
+/**
+ * 站长授予的徽章：**金边 + 更实的底** + 「授予」角标。
+ *
+ * 第三种长相是必须的。三类徽章的区别要一眼看出来：
+ *   系统 → 实心深色 + 「系统」角标；授予 → 金色描边 + 「授予」角标；自建 → 细描边无角标。
+ * 少一种长相，就等于给「自封官方认证」留了一条路。
+ */
+export function grantedBadgeChip(badge: GrantedBadge): HTMLElement {
+  const node = el(
+    'span',
+    {
+      className: `acc-badge acc-badge--granted${badge.archived ? ' is-archived' : ''}`,
+      attrs: { title: badge.archived ? `${badge.hint}（已下架）` : badge.hint },
+    },
+    [
+      ...(badge.emoji ? [el('span', { className: 'acc-badge__emoji', text: badge.emoji })] : []),
+      el('span', { className: 'acc-badge__label', text: badge.label }),
+      el('span', { className: 'acc-badge__tag', text: '授予', attrs: { 'aria-label': '站长授予' } }),
+    ],
+  );
+  node.style.setProperty('--badge-color', badge.color);
   return node;
 }
 

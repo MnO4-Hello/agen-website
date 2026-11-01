@@ -13,16 +13,15 @@
 import type { FastifyInstance } from 'fastify';
 
 import {
-  ADMIN_COOKIE,
   adminCookieHeader,
   noStore,
   readAdminConfig,
-  readCookie,
   sameSecret,
   signToken,
-  verifyToken,
   type AdminConfig,
 } from '../admin/session.js';
+import { resolveCurrentActor } from '../admin/guard.js';
+import { isActive } from '../users/moderation.js';
 import { DUMMY_HASH, verifyPassword } from '../users/password.js';
 import { findByLogin } from '../users/store.js';
 
@@ -87,10 +86,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const config = readAdminConfig();
     if (!config) return reply.code(503).send({ error: 'admin_not_configured' });
 
-    const token = readCookie(request, ADMIN_COOKIE);
-    const user = token ? verifyToken(token, config.secret) : null;
-    // 未登录也是 200：这是「状态查询」而不是权限校验，前端据此渲染，不该走错误分支。
-    return reply.send(user ? { authenticated: true, user } : { authenticated: false });
+    /*
+     * 这里走 `resolveCurrentActor()`（不是只验签名）：账号被停用 / 封禁 / 降级之后
+     * 必须立刻显示成「未登录」，否则前端会拿着一个已经没有权限的身份去渲染整个后台，
+     * 每个请求再各吃一个 401。
+     *
+     * `role` 是本次新增的：左侧导航要靠它决定显示哪些分区（管理员看不到作品与徽章）。
+     */
+    const actor = await resolveCurrentActor(request);
+    return reply.send(
+      actor
+        ? { authenticated: true, user: actor.name, role: actor.role, source: actor.source }
+        : { authenticated: false },
+    );
   });
 
   app.post('/admin/login', async (request, reply) => {
@@ -121,7 +129,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         'set-cookie',
         adminCookieHeader(signToken(config.user, config), config, Math.floor(config.ttlMs / 1000)),
       );
-      return reply.send({ authenticated: true, user: config.user });
+      return reply.send({ authenticated: true, user: config.user, role: 'owner', source: 'env' });
     }
 
     /*
@@ -139,7 +147,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const account = await findByLogin(credentials.username);
     const canAdmin =
       account !== null &&
-      account.status === 'active' &&
+      isActive(account) &&
       (account.role === 'admin' || account.role === 'owner');
     const accountPasswordOk = await verifyPassword(
       credentials.password,
@@ -162,7 +170,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         Math.floor(userConfig.ttlMs / 1000),
       ),
     );
-    return reply.send({ authenticated: true, user: account.username });
+    return reply.send({
+      authenticated: true,
+      user: account.username,
+      role: account.role,
+      source: 'account',
+    });
   });
 
   app.post('/admin/logout', async (_request, reply) => {

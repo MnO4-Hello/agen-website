@@ -27,6 +27,7 @@ export type AuthField = 'username' | 'nickname' | 'email' | 'password' | 'confir
 export type AuthCode =
   | 'invalid_credentials'
   | 'account_disabled'
+  | 'account_banned'
   | 'validation_error'
   | 'terms_required'
   | 'username_taken'
@@ -48,11 +49,41 @@ export interface AuthFailure {
   retryAfterSeconds?: number;
 }
 
-export type AuthSuccess = { ok: true; user: PublicUser };
+/**
+ * 禁言态。
+ *
+ * 只在**本人**的会话响应里出现（别人的资料永远不会带处罚信息）。没被禁言时后端
+ * 干脆不下发这个字段，所以是 `null` 而不是 `{ muted:false }`——少一种状态少一个分支。
+ *
+ * `mutedLabel` 是服务端排好版的中文（`至 2026-11-03 14:00` / `永久`）：前后端各格式
+ * 一次的话，时区差一小时就会变成「后台说 11-03、提示条说 11-02」。
+ */
+export interface ModerationState {
+  muted: true;
+  mutedUntil: string | null;
+  mutedLabel: string;
+  mutedReason: string;
+}
+
+function parseModeration(raw: unknown): ModerationState | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const value = raw as Record<string, unknown>;
+  if (value.muted !== true) return null;
+  return {
+    muted: true,
+    mutedUntil: typeof value.mutedUntil === 'string' ? value.mutedUntil : null,
+    mutedLabel: typeof value.mutedLabel === 'string' ? value.mutedLabel : '稍后',
+    mutedReason: typeof value.mutedReason === 'string' ? value.mutedReason : '',
+  };
+}
+
+export type AuthSuccess = { ok: true; user: PublicUser; moderation: ModerationState | null };
 export type AuthResult = AuthSuccess | AuthFailure;
 
 /** 一次会话查询：`ok` 但 `user === null` 就是游客。 */
-export type SessionResult = { ok: true; user: PublicUser | null } | { ok: false; message: string };
+export type SessionResult =
+  | { ok: true; user: PublicUser | null; moderation: ModerationState | null }
+  | { ok: false; message: string };
 
 /** 后端在本机，6 秒还没回基本就是没起。 */
 const TIMEOUT_MS = 6000;
@@ -109,16 +140,22 @@ function isFailure(value: Response | AuthFailure): value is AuthFailure {
 /** 后端给了 `message` 就用它（那是给最终用户看的一句话），否则用一句兜底。 */
 async function toFailure(response: Response, fallback: string): Promise<AuthFailure> {
   const data = (await response.json().catch(() => null)) as
-    | { error?: unknown; message?: unknown; field?: unknown; retryAfterSeconds?: unknown }
+    | { error?: unknown; message?: unknown; field?: unknown; retryAfterSeconds?: unknown; reason?: unknown }
     | null;
 
   const code = typeof data?.error === 'string' ? (data.error as AuthCode) : 'unknown';
-  const message =
+  const base =
     typeof data?.message === 'string' && data.message
       ? data.message
       : code === 'invalid_credentials'
         ? '用户名/邮箱或密码不对。'
         : fallback;
+  /*
+   * 封禁会额外带 `reason`：后端把它单独给出来（前端要能分别显示「到哪天」与「为什么」），
+   * 这里直接拼进 message——登录表单只有一个错误位，多一行独立字段反而要改版面。
+   */
+  const message =
+    typeof data?.reason === 'string' && data.reason ? `${base}（原因：${data.reason}）` : base;
 
   return {
     ok: false,
@@ -170,13 +207,13 @@ export async function fetchSession(): Promise<SessionResult> {
   }
 
   const data = (await response.json().catch(() => null)) as
-    | { authenticated?: unknown; user?: unknown }
+    | { authenticated?: unknown; user?: unknown; moderation?: unknown }
     | null;
-  if (!data || data.authenticated !== true) return { ok: true, user: null };
+  if (!data || data.authenticated !== true) return { ok: true, user: null, moderation: null };
 
   const user = parsePublicUser(data.user);
   // 后端说登录了但用户对象读不懂：当作游客，别拿半个对象去画头像。
-  return { ok: true, user };
+  return { ok: true, user, moderation: user ? parseModeration(data.moderation) : null };
 }
 
 export async function postLogin(input: LoginInput): Promise<AuthResult> {
@@ -184,9 +221,11 @@ export async function postLogin(input: LoginInput): Promise<AuthResult> {
   if (isFailure(response)) return response;
 
   if (response.ok) {
-    const data = (await response.json().catch(() => null)) as { user?: unknown } | null;
+    const data = (await response.json().catch(() => null)) as
+      | { user?: unknown; moderation?: unknown }
+      | null;
     const user = parsePublicUser(data?.user);
-    if (user) return { ok: true, user };
+    if (user) return { ok: true, user, moderation: parseModeration(data?.moderation) };
     return { ok: false, code: 'unknown', message: '后端返回的账号信息不完整，请刷新重试。' };
   }
 
@@ -201,9 +240,11 @@ export async function postRegister(input: RegisterInput): Promise<AuthResult> {
   if (isFailure(response)) return response;
 
   if (response.ok) {
-    const data = (await response.json().catch(() => null)) as { user?: unknown } | null;
+    const data = (await response.json().catch(() => null)) as
+      | { user?: unknown; moderation?: unknown }
+      | null;
     const user = parsePublicUser(data?.user);
-    if (user) return { ok: true, user };
+    if (user) return { ok: true, user, moderation: parseModeration(data?.moderation) };
     return { ok: false, code: 'unknown', message: '后端返回的账号信息不完整，请刷新重试。' };
   }
 

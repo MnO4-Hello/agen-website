@@ -7,6 +7,9 @@
  */
 
 import { WORK_CARD_COUNT, type WorkCardContent } from '../content/works';
+import { MY_WAY_FRAMES, type MyWayFrameContent } from '../content/my-way';
+import { formatDateTime, publishTimeOf } from '../blog/present';
+import type { PostSummary } from '../blog/types';
 import type { WorkSummary } from './api';
 
 /**
@@ -50,6 +53,42 @@ export function toWallCards(works: readonly WorkSummary[]): WorkCardContent[] {
   }
 
   return cards;
+}
+
+/**
+ * 博客帖子 → 「我的方式」那 16 个相框的内容。
+ *
+ * 规则：
+ *   · **只用有封面的帖子**（封面是显式上传的，不从正文首图派生）；
+ *   · 帖子数不足 16 时洗牌后循环填满——同屏最多只有三五个相框，重复看不出来，
+ *     而空着一半会让那一段又变回一排墨绿渐变块；
+ *   · 一个可用的都没有就返回空数组，调用方据此保持原有占位，不把相框变成白框。
+ *
+ * 注意**不返回 `ratio`**：相框的比例由 `MY_WAY_FRAMES` 那张表定死（对象飞行时的
+ * 遮挡节奏与截图基线都靠它），这里只负责往那个比例的窗口里填图。
+ */
+export function toMyWayFrames(posts: readonly PostSummary[]): MyWayFrameContent[] {
+  const usable = posts.filter((post) => Boolean(post.coverImage));
+  if (usable.length === 0) return [];
+
+  // Fisher-Yates：把库里的顺序打散，免得每次刷新都是同一批图占前几个框。
+  const pool = [...usable];
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[swap]] = [pool[swap] as PostSummary, pool[index] as PostSummary];
+  }
+
+  const frames: MyWayFrameContent[] = [];
+  for (let index = 0; index < MY_WAY_FRAMES.length; index += 1) {
+    const post = pool[index % pool.length];
+    if (!post) continue;
+    frames.push({
+      src: post.coverImage,
+      title: post.title,
+      date: formatDateTime(publishTimeOf(post)),
+    });
+  }
+  return frames;
 }
 
 /**

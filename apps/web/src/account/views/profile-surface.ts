@@ -16,6 +16,7 @@ import {
   formatDateTime,
   systemBadgeChip,
   customBadgeChip,
+  grantedBadgeChip,
   el,
   accButton,
 } from '../pieces';
@@ -117,9 +118,10 @@ export function renderProfileSurface(options: ProfileSurfaceOptions): HTMLElemen
     );
   }
 
-  // ⑤ 徽章：系统在前，自建在后，两类形状不同
+  // ⑤ 徽章：系统 → 站长授予 → 自建，三类形状各不相同（见 pieces.ts）
   const badgeNodes: HTMLElement[] = [
     ...data.systemBadges.map((badge) => systemBadgeChip(badge)),
+    ...data.grantedBadges.map((badge) => grantedBadgeChip(badge)),
     ...(data.customBadges ?? []).map((badge) => customBadgeChip(badge)),
   ];
   if (badgeNodes.length > 0) {

@@ -16,6 +16,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createJsonStore } from '../data/json-store.js';
+import { assertCanSanction, assertCanSetRole, type AdminActor } from '../admin/permissions.js';
+import { emptyModeration, normalizeModeration, type Sanction } from './moderation.js';
 import { hashPassword } from './password.js';
 import { defaultProfile, normalizeProfile, type ProfileData } from './profile-types.js';
 import { toPublicUser, type PublicUser, type Role, type UserRecord, type UsersState } from './types.js';
@@ -62,7 +64,12 @@ function parseState(raw: unknown): UsersState {
    */
   return {
     ...(raw as UsersState),
-    items: items.map((item) => ({ ...item, profile: normalizeProfile(item.profile) })),
+    items: items.map((item) => ({
+      ...item,
+      profile: normalizeProfile(item.profile),
+      // 处罚字段是后加的（老记录没有）：同样只在内存补默认值，不落盘迁移。
+      moderation: normalizeModeration(item.moderation),
+    })),
   };
 }
 
@@ -164,6 +171,7 @@ export async function createUser(input: CreateUserInput): Promise<UserRecord> {
       passwordHash,
       role: input.role ?? 'user',
       status: input.status ?? 'active',
+      moderation: emptyModeration(),
       avatarUrl: '',
       identities: [],
       createdAt: now,
@@ -357,4 +365,82 @@ export async function collectReferencedMedia(): Promise<Set<string>> {
     if (item.profile.backgroundUrl) used.add(item.profile.backgroundUrl);
   }
   return used;
+}
+
+/* ---------------------------------------------------------------------------
+   管理端：角色与处罚
+---------------------------------------------------------------------------
+
+   这三件事都必须写在 `mutate()` 回调**里面**，与唯一性检查同一个理由：
+   「现在还有几个 owner」这种判断一旦放到外面，两个管理员同时降级两个 owner
+   就会双双通过，把站点降成 0 个站长——那时只能改 JSON 文件才救得回来。
+*/
+
+export async function setRole(id: string, role: Role, actor: AdminActor): Promise<UserRecord> {
+  return store.mutate((state) => {
+    const record = state.items.find((item) => item.id === id);
+    if (!record) throw new UserError(404, 'account_not_found', '这个账号不存在（可能已经被删掉了）。');
+
+    const ownerCount = state.items.filter((item) => item.role === 'owner').length;
+    assertCanSetRole(actor, record, role, ownerCount);
+
+    if (record.role !== role) {
+      record.role = role;
+      // 注意：**不动 `updatedAt`**。它同时是设置页的乐观锁游标，管理员改角色
+      // 不该让用户正在编辑的草稿突然「过期」。角色变化靠 `role` 字段本身感知。
+      state.updatedAt = stamp();
+    }
+    return record;
+  });
+}
+
+/**
+ * 封禁 / 解封。
+ *
+ * `sanction === null` = 解封。解封会**同时**把 `status` 清回 `active`——否则
+ * CLI 停用过的账号在界面上显示「未封禁」却依然登不进来，那种不一致最难查。
+ * 永久封禁（`until === null`）额外写 `status: 'disabled'`，让老的只认 `status`
+ * 的代码路径也一起失效（双保险，代价是两处冗余，见 `moderation.ts` 的说明）。
+ */
+export async function setBan(
+  id: string,
+  sanction: Sanction | null,
+  actor: AdminActor,
+): Promise<UserRecord> {
+  return store.mutate((state) => {
+    const record = state.items.find((item) => item.id === id);
+    if (!record) throw new UserError(404, 'account_not_found', '这个账号不存在（可能已经被删掉了）。');
+    assertCanSanction(actor, record);
+
+    const moderation = { ...(record.moderation ?? emptyModeration()) };
+    moderation.ban = sanction;
+    record.moderation = moderation;
+    record.status = sanction === null || sanction.until !== null ? 'active' : 'disabled';
+    state.updatedAt = stamp();
+    return record;
+  });
+}
+
+/**
+ * 禁言 / 解除禁言。
+ *
+ * **绝不碰 `status`**：禁言的人照样能登录、看帖、改资料，只是发不了言。
+ * 碰了 `status` 就等于封号，这是这套功能里最容易踩的一脚。
+ */
+export async function setMute(
+  id: string,
+  sanction: Sanction | null,
+  actor: AdminActor,
+): Promise<UserRecord> {
+  return store.mutate((state) => {
+    const record = state.items.find((item) => item.id === id);
+    if (!record) throw new UserError(404, 'account_not_found', '这个账号不存在（可能已经被删掉了）。');
+    assertCanSanction(actor, record);
+
+    const moderation = { ...(record.moderation ?? emptyModeration()) };
+    moderation.mute = sanction;
+    record.moderation = moderation;
+    state.updatedAt = stamp();
+    return record;
+  });
 }

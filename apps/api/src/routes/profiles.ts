@@ -17,11 +17,14 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 
 import { noStore } from '../admin/session.js';
+import { grantedViewsOf } from '../users/badges-store.js';
+import { attachGrantedBadges } from '../users/granted-badges.js';
 import {
   accountMediaMime,
   accountMediaPaths,
   isAccountMediaName,
 } from '../users/profile-media.js';
+import { isActive } from '../users/moderation.js';
 import { systemBadgesOf } from '../users/profile-types.js';
 import { toPublicProfile } from '../users/profile-validate.js';
 import { resolveUser } from '../users/session.js';
@@ -36,7 +39,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
       const found = await findByUsernameWithIndex(username);
 
       // 停用的账号**任何档位都 404**：不能因为主人自己能看见就暴露「这个号被停了」。
-      if (!found || found.record.status !== 'active') {
+      if (!found || !isActive(found.record)) {
         return reply.code(404).send({ error: 'not_found', message: '没有这个人。' });
       }
 
@@ -59,15 +62,18 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      return reply.send({
-        profile: toPublicProfile(
-          publicOf(record),
-          record.profile,
-          record.lastLoginAt,
-          isSelf,
-          systemBadgesOf(record.role, record.createdAt, found.index),
-        ),
-      });
+      /*
+       * 授予徽章是「旁路附加」的：`toPublicProfile()` 的签名与隐私裁切逻辑一行都不用改。
+       * 它**不受** `privacy.badges` 约束（与系统徽章一致），理由见 `granted-badges.ts`。
+       */
+      const base = toPublicProfile(
+        publicOf(record),
+        record.profile,
+        record.lastLoginAt,
+        isSelf,
+        systemBadgesOf(record.role, record.createdAt, found.index),
+      );
+      return reply.send({ profile: attachGrantedBadges(base, await grantedViewsOf(record.id)) });
     } catch (error) {
       return failUser(app, reply, error);
     }

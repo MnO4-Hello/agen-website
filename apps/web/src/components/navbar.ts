@@ -1,5 +1,6 @@
 import { effectiveScrollY } from '../scroll-lock';
 import type { AuthState } from '../auth/session';
+import type { SiteConfig, SiteFeature } from '../site/config';
 import { createAccountEntry } from './account-entry';
 
 interface NavItem {
@@ -15,8 +16,32 @@ const NAV_ITEMS = [
   { id: 'about', label: '关于我' },
 ] as const satisfies readonly NavItem[];
 
+/** 单条导航项的类型（字面量联合，不是宽泛的 `NavItem`）。 */
+export type NavItemView = (typeof NAV_ITEMS)[number];
+
 /** 导航项 id，同时也是路由 id（`#home` / `#works` / …）。 */
 export type NavItemId = (typeof NAV_ITEMS)[number]['id'];
+
+/**
+ * 导航项 → 它依赖的站点功能。
+ *
+ * 只有这两项会被模式关掉；`home` / `works` / `about` 不在表里，恒显示。
+ * **为什么不在 `navbar` 里 import `app-routes`**：那边已经 import 了本文件的
+ * `NAV_ROUTES`，再反向依赖就成环了（ESM 能跑，但初始化的先后顺序会变成隐式约定，
+ * 改一行就可能变成 `undefined`）。规则这么短，就地写一份更安全。
+ */
+const NAV_ITEM_FEATURE: Partial<Record<NavItemId, SiteFeature>> = {
+  blog: 'blog',
+  message: 'message',
+};
+
+/** 当前模式下应当出现在导航栏里的项（顺序不变）。 */
+export function navItemsForSite(config: SiteConfig): readonly NavItemView[] {
+  return NAV_ITEMS.filter((item) => {
+    const feature = NAV_ITEM_FEATURE[item.id];
+    return feature === undefined || config.features[feature];
+  });
+}
 
 /**
  * 全部导航项 id，顺序与导航栏一致。
@@ -37,6 +62,22 @@ export interface NavbarOptions {
   onRememberReturnTo?: (hash: string) => void;
   /** 点「退出登录」时回调（真正的登出与跳转由 `main.ts` 编排）。 */
   onLogout?: () => void;
+  /**
+   * 要渲染的导航项，默认全部。
+   *
+   * `main.ts` 会按站点模式过滤后传进来（`navItemsForSite()`）。**过滤必须发生在
+   * 渲染之前**，不能先画出来再删——那样胶囊的 `offsetLeft` 会按旧节点量一次，
+   * 动画开场就错位。
+   */
+  items?: readonly NavItemView[];
+  /**
+   * 是否渲染右上角的账号位，默认渲染。
+   *
+   * `display` 模式下注册 / 登录已整体关闭，入口一起收掉（否则点进去是空白页）。
+   * 关掉时 `data-auth` 写 `off`，CSS 用那条规则把 `--account-reserve` 归零，
+   * 导航才会重新贴住右边缘。
+   */
+  showAccount?: boolean;
 }
 
 export interface NavbarHandle {
@@ -63,6 +104,9 @@ export interface NavbarHandle {
  * the active state stays readable at a glance.
  */
 export function createNavbar(options: NavbarOptions = {}): NavbarHandle {
+  const items = options.items ?? NAV_ITEMS;
+  const showAccount = options.showAccount ?? true;
+
   const header = document.createElement('header');
   header.className = 'site-header';
 
@@ -104,13 +148,16 @@ export function createNavbar(options: NavbarOptions = {}): NavbarHandle {
    * 所以改成「nav 用一个可变的 `margin-right` 预留出账号位的宽度」（见 styles.css），
    * 而账号位本身脱离布局——两边互不影响，`.nav` 内部的 `offsetLeft` 更是完全没变。
    */
-  const account = createAccountEntry({
-    header,
-    onRememberReturnTo: (hash) => options.onRememberReturnTo?.(hash),
-    onLogout: () => options.onLogout?.(),
-  });
-  header.dataset.auth = options.account?.status ?? 'unknown';
-  account.setState(options.account ?? { status: 'unknown' });
+  const account = showAccount
+    ? createAccountEntry({
+        header,
+        onRememberReturnTo: (hash) => options.onRememberReturnTo?.(hash),
+        onLogout: () => options.onLogout?.(),
+      })
+    : null;
+  // `off` 是新增的一档：账号位根本没渲染时用它，CSS 据此把预留宽度归零。
+  header.dataset.auth = account ? (options.account?.status ?? 'unknown') : 'off';
+  account?.setState(options.account ?? { status: 'unknown' });
 
   const indicator = document.createElement('span');
   indicator.className = 'nav__indicator';
@@ -174,7 +221,7 @@ export function createNavbar(options: NavbarOptions = {}): NavbarHandle {
     if (target) moveIndicator(target, false);
   };
 
-  for (const item of NAV_ITEMS) {
+  for (const item of items) {
     const link = document.createElement('a');
     link.className = 'nav__link';
     link.href = `#${item.id}`;
@@ -225,7 +272,8 @@ export function createNavbar(options: NavbarOptions = {}): NavbarHandle {
   window.addEventListener('scroll', syncScrolled, { passive: true });
   syncScrolled();
 
-  inner.append(brandWrap, navWrap, account.element);
+  inner.append(brandWrap, navWrap);
+  if (account) inner.append(account.element);
   header.append(inner);
 
   // Reveal the header once layout is measurable. `requestAnimationFrame` is the
@@ -255,6 +303,8 @@ export function createNavbar(options: NavbarOptions = {}): NavbarHandle {
       syncActive();
     },
     setAccount: (state: AuthState): void => {
+      // 账号位没渲染（`display` 模式）时改状态没有意义，直接忽略。
+      if (!account) return;
       // `data-auth` 决定 `.site-header__nav` 预留多宽（游客只有两个短链接，占得少）。
       header.dataset.auth = state.status;
       account.setState(state);
@@ -262,7 +312,7 @@ export function createNavbar(options: NavbarOptions = {}): NavbarHandle {
     dispose: () => {
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', syncScrolled);
-      account.dispose();
+      account?.dispose();
     },
   };
 }

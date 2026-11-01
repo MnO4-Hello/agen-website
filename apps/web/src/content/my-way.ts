@@ -39,6 +39,19 @@ export interface MyWayFrame {
 }
 
 /**
+ * 相框里实际要显示的内容：从博客来的封面 + 标题 + 发布时间。
+ *
+ * 和 `MyWayFrame` 分开，是因为它**不带 `ratio`**：比例由 `MY_WAY_FRAMES` 那张表定死
+ * （物理与截图基线都依赖它），注入的图只负责填进那个比例的窗口里。
+ */
+export interface MyWayFrameContent {
+  readonly src: string;
+  readonly title: string;
+  /** 已经格式化好的发布时间，例如 `2026-10-27 16:10`。 */
+  readonly date: string;
+}
+
+/**
  * 16 个相框。
  *
  * 目前**全是占位**（用户选定的做法：先不接真图）：没有 `src` 时相框里画一块由主题色

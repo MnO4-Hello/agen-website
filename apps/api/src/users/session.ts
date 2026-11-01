@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { noStore, readCookie, sameSecret } from '../admin/session.js';
+import { isActive } from './moderation.js';
 import { findById } from './store.js';
 import type { UserRecord } from './types.js';
 
@@ -167,7 +168,8 @@ export async function resolveUser(request: FastifyRequest): Promise<UserRecord |
   if (!userId) return null;
 
   const record = await findById(userId);
-  if (!record || record.status !== 'active') return null;
+  // 用 `isActive()` 而不是 `status`：限期封禁不会改 `status`（见 `moderation.ts`）。
+  if (!record || !isActive(record)) return null;
   return record;
 }
 

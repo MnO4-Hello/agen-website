@@ -125,6 +125,8 @@ export const BADGES_COPY = {
   note: '标签是自由文本，徽章可以自己造——但名字不能碰「官方 / 认证」这类保留词。',
   systemTitle: '系统徽章',
   systemNote: '由账号信息自动生成，不能自己造，也不能关掉。',
+  grantedTitle: '站长授予',
+  grantedNote: '站长按目录发下来的徽章，自己不能增删；觉得该有一枚就去留言板说一声。',
   customTitle: '我自己的徽章',
   customNote: '最多 12 枚。名称 12 个字以内，颜色取 #rrggbb。',
   badgeName: '名称',

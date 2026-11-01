@@ -34,6 +34,8 @@ import {
   updatePasswordHash,
   type MediaKind,
 } from '../users/store.js';
+import { grantedViewsOf } from '../users/badges-store.js';
+import type { GrantedBadgeView } from '../users/granted-badges.js';
 import type { UserRecord } from '../users/types.js';
 import { checkPassword, UserError } from '../users/validate.js';
 import { failUser } from './error.js';
@@ -54,7 +56,7 @@ function readKind(request: FastifyRequest): MediaKind {
   throw new UserError(400, 'invalid_kind', '图片类型只能是 avatar / cover / background。');
 }
 
-async function myProfileOf(record: UserRecord): Promise<MyProfile> {
+async function myProfileOf(record: UserRecord): Promise<MyProfile & { grantedBadges: GrantedBadgeView[] }> {
   // 注册顺序只有 `early` 徽章用得到，但它必须与真实顺序一致，所以顺手取一次 index。
   const found = await findByUsernameWithIndex(record.username);
   return {
@@ -62,6 +64,8 @@ async function myProfileOf(record: UserRecord): Promise<MyProfile> {
     profile: record.profile,
     meta: { lastLoginAt: record.lastLoginAt, updatedAt: record.updatedAt },
     systemBadges: systemBadgesOf(record.role, record.createdAt, found?.index ?? -1),
+    // 授予徽章（站长发的）与 `profile.badges`（自己造的）是两个字段，见 granted-badges.ts。
+    grantedBadges: await grantedViewsOf(record.id),
   };
 }
 

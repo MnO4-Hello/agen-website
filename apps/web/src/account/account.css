@@ -588,6 +588,30 @@
   color: var(--text);
 }
 
+/*
+ * 站长授予：金色细边 + 更实的底色 + 「授予」角标。
+ *
+ * 三类徽章的视觉差分是**安全边界**：用户能自建徽章，如果三种长得一样，
+ * 任何人五分钟就能自封「官方认证」。所以这里宁可多一个角标，也不要「统一好看」。
+ */
+.acc-badge--granted {
+  border: 1px solid color-mix(in srgb, var(--badge-color, #b08d3f) 55%, #b08d3f);
+  background: color-mix(in srgb, var(--badge-color, #b08d3f) 20%, #fffdf7);
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(176, 141, 63, 0.12);
+}
+
+.acc-badge--granted .acc-badge__tag {
+  background: color-mix(in srgb, var(--badge-color, #b08d3f) 28%, transparent);
+  color: #6b5122;
+}
+
+/* 已下架的目录项：徽章还在，但视觉上退一档（别让人以为它随时会消失）。 */
+.acc-badge--granted.is-archived {
+  opacity: 0.68;
+  border-style: dashed;
+}
+
 .acc-badge--custom .acc-iconbtn {
   width: 1.1rem;
   height: 1.1rem;
@@ -1282,4 +1306,25 @@
   .account-page__tab {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   账号页头部的「已禁言」标记
+
+   为什么不用 `hidden` 的默认行为：全站 reset 里没有 `[hidden] { display:none }`，
+   任何自己声明了 `display` 的选择器都会把它盖掉（项目里踩过这个坑）。
+   所以这里显式写一条 `[hidden]` 兜底，别删。
+--------------------------------------------------------------------------- */
+
+.account-page__muted {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(176, 141, 63, 0.18);
+  color: #7d5a20;
+  font-size: 0.7rem;
+  cursor: help;
+}
+
+.account-page__muted[hidden] {
+  display: none !important;
 }

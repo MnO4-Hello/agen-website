@@ -19,6 +19,7 @@ import {
   accStatus,
   customBadgeChip,
   el,
+  grantedBadgeChip,
   systemBadgeChip,
   tagChip,
 } from '../../pieces';
@@ -66,6 +67,17 @@ export function createBadgesPanel(hub: SettingsHub): SettingsPanel {
     note: BADGES_COPY.systemNote,
   });
   systemBlock.body.append(systemRow);
+
+  /* -------------------------------------------------------------------------
+     站长授予（只读；增删只有后台能做）
+  ------------------------------------------------------------------------- */
+
+  const grantedRow = el('div', { className: 'acc-badges' });
+  const grantedBlock = accBlock({
+    title: BADGES_COPY.grantedTitle,
+    note: BADGES_COPY.grantedNote,
+  });
+  grantedBlock.body.append(grantedRow);
 
   /* -------------------------------------------------------------------------
      标签
@@ -222,7 +234,12 @@ export function createBadgesPanel(hub: SettingsHub): SettingsPanel {
     );
   };
 
-  const element = el('div', {}, [systemBlock.element, badgesBlock.element, tagsBlock.element]);
+  const element = el('div', {}, [
+    systemBlock.element,
+    grantedBlock.element,
+    badgesBlock.element,
+    tagsBlock.element,
+  ]);
 
   return {
     element,
@@ -231,6 +248,11 @@ export function createBadgesPanel(hub: SettingsHub): SettingsPanel {
         ...(data.systemBadges.length > 0
           ? data.systemBadges.map((badge) => systemBadgeChip(badge))
           : [el('span', { className: 'acc-muted', text: '暂时没有。' })]),
+      );
+      grantedRow.replaceChildren(
+        ...(data.grantedBadges.length > 0
+          ? data.grantedBadges.map((badge) => grantedBadgeChip(badge))
+          : [el('span', { className: 'acc-muted', text: '暂时还没有被授予徽章。' })]),
       );
       paintTags(hub.draft().tags);
       paintBadges(hub.draft().badges);

@@ -16,6 +16,7 @@ import {
   DEFAULT_THEME,
   type CustomBadge,
   type Gender,
+  type GrantedBadge,
   type MyProfile,
   type PrivacySettings,
   type ProfileData,
@@ -211,6 +212,7 @@ function parseMyProfile(raw: unknown): MyProfile | null {
       updatedAt: asString(meta.updatedAt),
     },
     systemBadges: asArray<SystemBadge>(value.systemBadges),
+    grantedBadges: asArray<GrantedBadge>(value.grantedBadges),
   };
 }
 
@@ -374,6 +376,7 @@ export async function fetchPublicProfile(username: string): Promise<PublicProfil
       tags: Array.isArray(value.tags) ? (value.tags as string[]) : null,
       customBadges: Array.isArray(value.customBadges) ? (value.customBadges as CustomBadge[]) : null,
       systemBadges: asArray<SystemBadge>(value.systemBadges),
+      grantedBadges: asArray<GrantedBadge>(value.grantedBadges),
       stats: {
         days: typeof stats.days === 'number' ? stats.days : 0,
         badges: typeof stats.badges === 'number' ? stats.badges : 0,

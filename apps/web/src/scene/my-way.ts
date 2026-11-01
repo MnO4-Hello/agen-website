@@ -30,7 +30,13 @@
  */
 
 import { gsap } from './gsap-support';
-import { MY_WAY_FRAMES, MY_WAY_LINES, MY_WAY_STAR_COUNT, type MyWayFrame } from '../content/my-way';
+import {
+  MY_WAY_FRAMES,
+  MY_WAY_LINES,
+  MY_WAY_STAR_COUNT,
+  type MyWayFrame,
+  type MyWayFrameContent,
+} from '../content/my-way';
 
 /** 同屏最多几个被甩出的对象。参考站 5。 */
 const MAX_THROWN = 5;
@@ -132,6 +138,14 @@ if (devParams?.get('mwshot') === '1') installShotStyles();
 export interface MyWayHandle {
   readonly element: HTMLElement;
   setActive(active: boolean): void;
+  /**
+   * 换掉 16 个相框里的内容（封面 / 标题 / 发布时间）。
+   *
+   * **就地改 `<img src>` 与图注文字，不重建元素、不改数量与比例**：对象随时可能在
+   * 飞行中，重建会让它瞬移；而物理池、`?mwobjects=` 的截图基线都依赖「16 框 + 10 星」。
+   * 传空数组 = 什么都不做（保持占位）。
+   */
+  setFrames(frames: readonly MyWayFrameContent[]): void;
   resize(): void;
   dispose(): void;
 }
@@ -414,6 +428,12 @@ class MyWayScene {
   private readonly objects: WayObject[] = [];
   private readonly pool: WayObject[] = [];
   private readonly thrown: WayObject[] = [];
+  /** 16 个相框的图注节点，按创建顺序；`setFrames()` 就地改它们。 */
+  private readonly frameSlots: {
+    readonly image: HTMLImageElement;
+    readonly title: HTMLElement;
+    readonly date: HTMLElement;
+  }[] = [];
   private readonly objectLayer: HTMLElement;
   private readonly ruler: HTMLElement;
   private readonly catcher: HTMLElement;
@@ -495,8 +515,18 @@ class MyWayScene {
       if (frame.src) image.src = frame.src;
       const figcaption = document.createElement('figcaption');
       figcaption.className = 'a__caption';
-      figcaption.textContent = caption;
+      // 两行：第一行标题（占位态就是原来那句 caption），第二行发布时间——只有
+      // `setFrames()` 注入博客内容时才出现，所以先 `display:none`。
+      // 注意**不能用 `hidden` 属性**：`styles.css` 里没有全局的 `[hidden]{display:none}`。
+      const title = document.createElement('span');
+      title.className = 'a__caption-title';
+      title.textContent = caption;
+      const date = document.createElement('span');
+      date.className = 'a__meta';
+      date.style.display = 'none';
+      figcaption.append(title, date);
       figure.append(image, figcaption);
+      this.frameSlots.push({ image, title, date });
 
       const horizontal = document.createElement('div');
       horizontal.className = 'a__side a__side--horizontal';
@@ -625,6 +655,28 @@ class MyWayScene {
       }
       for (const object of this.thrown) object.revive();
     }
+  }
+
+  /**
+   * 把博客内容填进 16 个相框。
+   *
+   * 只改 `<img src>`、图注两行文字与占位类的有无；**元素、比例、对象池一概不动**，
+   * 所以正在飞行的对象不会瞬移，`?mwobjects=` 的截图基线也不受影响。
+   */
+  setFrames(frames: readonly MyWayFrameContent[]): void {
+    if (frames.length === 0) return;
+
+    this.frameSlots.forEach((slot, index) => {
+      const next = frames[index % frames.length];
+      if (!next) return;
+      slot.image.src = next.src;
+      slot.image.classList.remove('a__img--placeholder');
+      slot.image.classList.add('a__img--photo');
+      slot.image.alt = next.title;
+      slot.title.textContent = next.title;
+      slot.date.textContent = next.date;
+      slot.date.style.display = next.date ? '' : 'none';
+    });
   }
 
   resize(): void {

@@ -1,0 +1,331 @@
+/* ---------------------------------------------------------------------------
+   关于我（#about）
+
+   为什么单独一个文件：与 `blog/blog.css`、`message/message.css` 同理——这一页的
+   类名（`about__*`）自成一套，独立文件好找，也不会被 styles.css 里首页那些 GSAP
+   舞台的规则误伤。`main.ts` 的 import 顺序是 `styles.css` → `account.css` →
+   `blog.css` → `message.css` → `about.css`，同权重时后者胜出。
+
+   材质沿用全站那一套（毛玻璃浅底 + 品牌绿描边 + 999px 圆角），`.about__pill` 就是
+   `.wdetail__pill` / `.page__back` 的同一档观感，**不另起一套按钮语言**。
+
+   排版照阅读型页面的纪律：外层 `100lvh` + 三段式 padding，内层 `min(Nrem,100%)`
+   + `margin: 0 auto` + 一条 14px 位移的入场动画（数值抄 `.wk-in`）。
+--------------------------------------------------------------------------- */
+
+.about {
+  position: relative;
+  min-height: 100lvh;
+  padding: calc(var(--header-height) + clamp(2rem, 6vw, 4rem)) clamp(1.25rem, 5vw, 4rem)
+    clamp(4rem, 10vw, 7rem);
+}
+
+/* 唯一动画层：整页一次淡入上移，不按区块做 IntersectionObserver——纯静态长文，
+   逐块弹出来反而打断阅读。
+   宽度卡在 41rem：正文收在 40rem（约 40 字/行）是阅读需要的，容器只比它宽一点点，
+   整页才是真正居中；容器放大到 48rem 以上，右侧会空出一大片、看着像没对齐。 */
+.about__inner {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.2rem, 5vw, 3.6rem);
+  width: min(41rem, 100%);
+  margin: 0 auto;
+  animation: about-in 0.5s var(--ease-out) both;
+}
+
+@keyframes about-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- 页头：左头像 + 右标题/引子 ---------- */
+
+/* 照片占 13rem、其余留给标题和引子：容器只有 41rem 时，头像再宽就会把引子挤成
+   五六行，页头会比正文还长。 */
+.about__head {
+  display: grid;
+  grid-template-columns: clamp(7.5rem, 22vw, 13rem) minmax(0, 1fr);
+  gap: clamp(1.25rem, 3.5vw, 2.5rem);
+  align-items: center;
+}
+
+.about__portrait {
+  margin: 0;
+}
+
+/* 相框是「必须」而不是装饰：插画本体是米白底，页面底色 --bg 也很浅，不垫一层白卡
+   + 描边，照片边缘会和背景糊成一片。微旋 1.2° 让它像贴在纸上的一张照片。 */
+.about__frame {
+  padding: 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(31, 61, 43, 0.14), 0 2px 6px rgba(31, 61, 43, 0.06);
+  transform: rotate(-1.2deg);
+}
+
+.about__photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: calc(1.5rem - 0.45rem);
+  user-select: none;
+}
+
+.about__caption {
+  margin-top: 0.7rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-align: center;
+}
+
+.about__kicker {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.about__title {
+  margin: 0.35rem 0 0;
+  color: var(--text);
+  font-size: clamp(2.4rem, 6vw, 4rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.04em;
+}
+
+.about__lede {
+  margin: 0.9rem 0 0;
+  max-width: 34rem;
+  color: var(--text);
+  font-size: clamp(1rem, 1.5vw, 1.08rem);
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- 分节 ---------- */
+
+/* 一条顶线代替「卡片」：内容一多，卡片会把长文切得支离破碎，一栏到底才读得下去。
+   三个分节统一收在 40rem（≈40 字/行），这样三条分隔线一样长——否则正文那段被
+   `max-width` 收窄、联系我那段却拉满，两条线参差会显得没对齐。 */
+.about__block {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 2vw, 1.1rem);
+  max-width: 40rem;
+  padding-top: clamp(1.5rem, 4vw, 2.2rem);
+  border-top: 1px solid var(--line);
+}
+
+.about__para {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.9;
+  letter-spacing: 0.01em;
+  /* 渐进增强：支持的浏览器会把末行孤字勾回上一行。 */
+  text-wrap: pretty;
+}
+
+.about__section-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+}
+
+.about__section-note {
+  margin: 0;
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.75;
+}
+
+/* ---------- 联系我：胶囊 ---------- */
+
+.about__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about__links > li {
+  display: flex;
+  min-width: 0;
+}
+
+/* 与 .wdetail__pill / .page__back 同源：毛玻璃浅底 + 品牌绿描边 + 999px。
+   max-width/min-width 是防御性的——万一日后有人把长地址塞进 label，它只会换行，
+   不会把整行撑出横向滚动条。 */
+.about__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  transition: background 0.28s var(--ease-out), border-color 0.28s var(--ease-out),
+    box-shadow 0.28s var(--ease-out), transform 0.28s var(--ease-out);
+}
+
+.about__pill:hover,
+.about__pill:focus-visible {
+  border-color: var(--brand);
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+  transform: translateY(-2px);
+}
+
+/* 圆形字母徽标：不用第三方 logo（GitHub/B站/QQ 的 path 手写容易走形），一个 ASCII
+   字符零体积、system-ui 必有字形，四条并列时天然成一列，扫读比文字快。 */
+.about__pill-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  background: rgba(63, 125, 88, 0.12);
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  font-weight: 700;
+  /* 父级的 .12em 会让字母在圆里偏左。 */
+  letter-spacing: 0;
+  line-height: 1;
+  transition: background 0.28s var(--ease-out), color 0.28s var(--ease-out);
+}
+
+/* 悬停时徽标反白，否则胶囊整体只有边框和位移在动，图标像「贴上去的」。 */
+.about__pill:hover .about__pill-badge,
+.about__pill:focus-visible .about__pill-badge {
+  background: var(--brand);
+  color: #f6faf3;
+}
+
+.about__pill-label {
+  overflow-wrap: anywhere;
+}
+
+.about__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 邮箱全址：胶囊里只放短标签，地址单独一行等宽字，可选中复制。 */
+.about__mail {
+  margin: 0;
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.about__mail-link {
+  color: var(--brand-strong);
+  text-decoration: none;
+}
+
+.about__mail-link:hover,
+.about__mail-link:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- 断点 ---------- */
+
+/* 单列：头像不许铺满整行，否则头图会吃掉半屏、把标题挤到看不见。 */
+@media (max-width: 48rem) {
+  .about__head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+  }
+
+  .about__portrait {
+    width: min(12rem, 45vw);
+  }
+
+  .about__frame {
+    transform: none;
+  }
+
+  .about__title {
+    font-size: clamp(2.2rem, 8vw, 3rem);
+  }
+}
+
+@media (max-width: 30rem) {
+  .about__pill {
+    padding: 0.55rem 1rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+  }
+}
+
+@media (max-width: 22.5rem) {
+  .about__inner {
+    gap: 2rem;
+  }
+
+  .about__links {
+    gap: 0.5rem;
+  }
+
+  .about__title {
+    font-size: 2rem;
+  }
+
+  .about__mail {
+    font-size: 0.74rem;
+  }
+}
+
+/* ---------- 无障碍 ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .about__inner {
+    animation: none;
+  }
+
+  .about__pill,
+  .about__pill-badge {
+    transition: none;
+  }
+
+  .about__pill:hover,
+  .about__pill:focus-visible {
+    transform: none;
+  }
+}

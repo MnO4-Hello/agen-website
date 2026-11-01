@@ -1961,3 +1961,994 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ===========================================================================
+   内容（帖子 / 分类 / 回复）
+
+   与「作品」那节同一套材质：`--line` 描边 + 半透明白底 + 12~14px 圆角。
+   不引 `styles.css`，所以预览区的 `.md-body` 排版在这里另写一份：
+   结构与 `apps/web/src/shared/markdown.ts` 的产物一一对应，改那边记得看这里。
+=========================================================================== */
+
+.admin-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(244, 249, 241, 0.9);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.admin-pill.is-on {
+  border-color: rgba(63, 125, 88, 0.5);
+  background: rgba(220, 236, 215, 0.9);
+  color: var(--brand-strong);
+}
+
+.admin-pill.is-danger {
+  border-color: rgba(168, 66, 58, 0.4);
+  background: rgba(249, 236, 234, 0.9);
+  color: var(--danger);
+}
+
+.bps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bps__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.bps__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.bps__count {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.bps__top-ops {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bps__status {
+  margin: 0;
+  color: var(--brand-strong);
+  font-size: 0.8rem;
+}
+
+.bps__status.is-error {
+  color: var(--danger);
+}
+
+.bps__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bps__empty {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.bps__list {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+}
+
+.bps__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem 9.5rem;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.bps__row:last-child {
+  border-bottom: 0;
+}
+
+.bps__row.is-draft {
+  background: rgba(250, 250, 246, 0.9);
+}
+
+.bps__row-main {
+  min-width: 0;
+}
+
+.bps__row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bps__publish {
+  cursor: pointer;
+}
+
+.bps__row-title {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bps__row-title:hover,
+.bps__row-title:focus-visible {
+  color: var(--brand-strong);
+  text-decoration: underline;
+}
+
+.bps__row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.bps__tag {
+  color: var(--muted);
+}
+
+.bps__tag.is-cat {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(220, 236, 215, 0.75);
+  color: var(--brand-strong);
+}
+
+.bps__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.bps__row-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bps__sep {
+  color: var(--line);
+}
+
+.bps__row-ops,
+.bps__subhead {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.bps__subhead {
+  justify-content: flex-start;
+}
+
+/* ---------- 编辑器 ---------- */
+
+.bpe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.bpe__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bpe__heading {
+  flex: 1;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.bpe__save.is-dirty {
+  box-shadow: 0 0 0 3px rgba(63, 125, 88, 0.18);
+}
+
+.bpe__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 25rem);
+  gap: 1rem;
+  align-items: start;
+}
+
+.bpe__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bpe__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bpe__label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+
+.bpe__hint {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.bpe__inline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bpe__inline .admin-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.bpe__markdown {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.bpe__switches {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(248, 251, 246, 0.9);
+}
+
+.bpe__aside {
+  position: sticky;
+  top: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.bpe__aside-title {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* 预览区的 Markdown 排版（与主站 `.md-body` 对齐，只保留后台用得上的几条） */
+.bpe__preview {
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.75;
+}
+
+.bpe__preview > *:first-child {
+  margin-top: 0;
+}
+
+.bpe__preview p {
+  margin: 0 0 0.75rem;
+}
+
+.bpe__preview h2,
+.bpe__preview h3,
+.bpe__preview h4,
+.bpe__preview h5,
+.bpe__preview h6 {
+  margin: 1.2rem 0 0.5rem;
+  font-size: 0.98rem;
+  line-height: 1.4;
+}
+
+.bpe__preview ul,
+.bpe__preview ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.2rem;
+}
+
+.bpe__preview li {
+  margin: 0.15rem 0;
+}
+
+.bpe__preview blockquote {
+  margin: 0 0 0.75rem;
+  padding: 0.2rem 0 0.2rem 0.75rem;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+
+.bpe__preview pre {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(31, 61, 43, 0.06);
+  overflow: auto;
+}
+
+.bpe__preview code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+  background: rgba(31, 61, 43, 0.07);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82em;
+}
+
+.bpe__preview pre code {
+  padding: 0;
+  background: none;
+}
+
+.bpe__preview a {
+  color: var(--brand-strong);
+}
+
+.bpe__preview img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.bpe__preview hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- 分类 ---------- */
+
+.bps-cats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.bps-cats__new {
+  display: flex;
+  gap: 0.4rem;
+  /* 分类名都不长，输入框铺满整个内容区（1000px+）会显得空，收在 46rem 里更好读。 */
+  max-width: 46rem;
+}
+
+.bps-cats__new .admin-input {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.bps-cats__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.bps-cats__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 46rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bps-cats__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5rem 6rem auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.bps-cats__count,
+.bps-cats__key {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.bps-cats__key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bps-cats__ops {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.bps-cats__empty {
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* ---------- 回复 ---------- */
+
+.bps-replies {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.bps-replies__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.bps-replies__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.bps-replies__post {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.bps-replies__count {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.bps-replies__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.bps-replies__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bps-replies__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.bps-replies__row.is-hidden {
+  background: rgba(250, 246, 244, 0.9);
+  border-style: dashed;
+}
+
+.bps-replies__meta {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.bps-replies__floor {
+  color: var(--brand-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.bps-replies__name {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bps-replies__name.is-guest {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.bps-replies__quote {
+  color: var(--muted);
+}
+
+.bps-replies__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.bps-replies__body {
+  grid-column: 1;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.bps-replies__ops {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  align-items: center;
+}
+
+.bps-replies__more {
+  display: flex;
+  justify-content: center;
+}
+
+.bps-replies__empty {
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+
+
+/* ---------- 正文插图 ---------- */
+
+.bpe__media {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(248, 251, 246, 0.85);
+}
+
+.bpe__media-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.bpe__media-status {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.bpe__media-status.is-ok {
+  color: var(--brand-strong);
+}
+
+.bpe__media-status.is-error {
+  color: var(--danger);
+}
+
+/* 真实的 file input 只负责唤起选择框，不参与排版 */
+.bpe__file {
+  display: none;
+}
+
+.bpe__thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.bpe__thumb {
+  width: 5.5rem;
+  height: 3.5rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+}
+
+.bpe__thumb:hover,
+.bpe__thumb:focus-visible {
+  border-color: var(--brand);
+  transform: translateY(-1px);
+}
+
+.bpe__thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- 封面 ---------- */
+
+/* 左侧方形预览 + 右侧按钮组；预览留着虚线框，空着的时候也能看出「这里有一块」。 */
+.bpe__cover-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.bpe__cover {
+  display: grid;
+  place-items: center;
+  width: 6.5rem;
+  aspect-ratio: 1 / 1;
+  padding: 0.3rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: rgba(248, 251, 246, 0.85);
+  overflow: hidden;
+}
+
+.bpe__cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.bpe__cover .bpe__hint {
+  text-align: center;
+}
+
+.bpe__cover-side {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+@media (max-width: 1180px) {
+  .bpe__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bpe__aside {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .bps__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.3rem;
+  }
+
+  .bps__row-ops {
+    justify-content: flex-start;
+  }
+
+  .bps-cats__row {
+    grid-template-columns: minmax(0, 1fr) 4rem;
+  }
+
+  .bps-cats__key {
+    display: none;
+  }
+
+  .bps-cats__ops {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   留言（guestbook）
+
+   与「内容」里的回复面板同构：一行一条留言，展开就是内联详情。没有弹窗。
+   可逆操作（隐藏 / 恢复）不弹确认框，状态反馈走顶部那行 role=status。
+--------------------------------------------------------------------------- */
+
+.gbk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gbk__top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.gbk__count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.gbk__top > .admin-btn {
+  margin-left: auto;
+}
+
+.gbk__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.gbk__filters .admin-input--search {
+  flex: 1 1 14rem;
+  max-width: 20rem;
+}
+
+.gbk__status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.gbk__status.is-error {
+  color: var(--danger);
+}
+
+.gbk__status.is-ok {
+  color: var(--brand-strong);
+}
+
+.gbk__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gbk__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* 已隐藏：虚线与米色底，扫一眼就能和「正常」区分开 */
+.gbk__row.is-hidden {
+  border-style: dashed;
+  background: rgba(247, 241, 235, 0.8);
+}
+
+.gbk__rowhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.gbk__floor {
+  color: var(--brand-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.gbk__name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.gbk__time,
+.gbk__replies-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.gbk__replies-count {
+  margin-left: auto;
+}
+
+.gbk__excerpt {
+  margin: 0;
+  color: #2a4a37;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.gbk__ops {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.gbk__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--line);
+}
+
+.gbk__body {
+  margin: 0;
+  color: #2a4a37;
+  font-size: 0.85rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.gbk__shots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.gbk__shot {
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(238, 244, 235, 0.9);
+}
+
+.gbk__shot-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gbk__replies {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gbk__reply {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: rgba(238, 244, 235, 0.7);
+}
+
+.gbk__reply.is-hidden {
+  border-style: dashed;
+  border-color: var(--line);
+  background: rgba(247, 241, 235, 0.7);
+}
+
+.gbk__reply-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.gbk__reply-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.gbk__reply-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 回复行里的按钮要小一号，否则一行 meta 会被撑得很高 */
+.gbk__reply-meta .admin-btn {
+  margin-left: auto;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.gbk__reply-body {
+  margin: 0;
+  color: #2a4a37;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.gbk__replyform {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.gbk__replyinput {
+  resize: vertical;
+  font: inherit;
+  font-size: 0.84rem;
+  line-height: 1.6;
+}
+
+.gbk__replyform .admin-btn {
+  align-self: flex-end;
+}
+
+.gbk__empty {
+  margin: 0;
+  padding: 1.1rem;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.gbk__more {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .gbk__replies-count {
+    margin-left: 0;
+  }
+}

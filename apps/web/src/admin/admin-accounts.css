@@ -1,0 +1,478 @@
+/* ---------------------------------------------------------------------------
+   后台「账户」与「徽章」
+
+   单独一个文件而不是往 `admin.css`（已近 3000 行）里追加：这两块是后来加的，
+   放一起只会让那个文件更难找东西；顺带也避免和别人的改动在同一处冲突。
+   调色板全部走 `admin.css` 的 `:root` token，不另立一套。
+
+   视觉沿用后台的通用语言：1px `--line` 描边 + 半透明白底 + 12–14px 圆角。
+   账户行是「信息在上、操作在下」，展开的面板夹在同一张卡里（没有弹窗）。
+--------------------------------------------------------------------------- */
+
+/* 账户 ------------------------------------------------------------------- */
+
+.acm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.acm__top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.acm__count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.acm__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.acm__filters .admin-input--search {
+  flex: 1 1 16rem;
+}
+
+.acm__status {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.acm__status.is-error {
+  border-color: rgba(168, 68, 44, 0.35);
+  background: rgba(168, 68, 44, 0.08);
+  color: var(--danger);
+}
+
+.acm__status.is-ok {
+  border-color: rgba(63, 125, 88, 0.35);
+  background: rgba(63, 125, 88, 0.09);
+  color: var(--brand-strong);
+}
+
+.acm__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.acm__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.acm__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.acm__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--pill);
+  color: var(--brand-strong);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.acm__id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.acm__name {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.acm__handle {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.acm__mail {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acm__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+.acm__pill {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.acm__pill--role {
+  background: rgba(76, 111, 138, 0.12);
+  color: #3a5a74;
+}
+
+.acm__pill--ban {
+  background: rgba(168, 68, 44, 0.12);
+  color: var(--danger);
+}
+
+.acm__pill--mute {
+  background: rgba(200, 156, 84, 0.18);
+  color: #7d5a20;
+}
+
+/* 已过期的处罚：留着记录，但视觉上退到背景里 */
+.acm__pill--muted {
+  background: rgba(85, 112, 95, 0.1);
+  color: var(--muted);
+}
+
+.acm__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.acm__metabadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.acm__minibadge {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--chip, var(--line));
+  border-radius: 999px;
+  color: var(--chip, var(--muted));
+  font-size: 0.68rem;
+}
+
+.acm__minibadge.is-archived {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.acm__ops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.acm__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.7rem;
+  background: rgba(242, 247, 240, 0.7);
+}
+
+.acm__panelnote {
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.acm__panelnote.is-expired {
+  color: var(--muted);
+}
+
+.acm__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.acm__durations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.acm__panelfoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.acm__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* 徽章 chip：后台与前台「授予徽章」同一套观感（色点 + 名称 + × 撤销） */
+.acm__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--muted);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.acm__chip:hover {
+  border-color: var(--chip, var(--brand));
+}
+
+.acm__chip.is-on {
+  border-color: var(--chip, var(--brand));
+  color: var(--text);
+  background: color-mix(in srgb, var(--chip, var(--brand)) 12%, #fff);
+}
+
+.acm__chip.is-archived {
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.acm__chip-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--chip, var(--muted));
+}
+
+.acm__chip-x {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.acm__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.25rem 0;
+}
+
+.acm__pageno {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 徽章目录 --------------------------------------------------------------- */
+
+.bdg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bdg__top {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.bdg__count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.bdg__status {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.bdg__status.is-error {
+  border-color: rgba(168, 68, 44, 0.35);
+  color: var(--danger);
+}
+
+.bdg__status.is-ok {
+  border-color: rgba(63, 125, 88, 0.35);
+  color: var(--brand-strong);
+}
+
+.bdg__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.bdg__formrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.bdg__formrow .admin-input {
+  flex: 1 1 10rem;
+}
+
+.bdg__formrow .bdg__emoji {
+  flex: 0 0 4.5rem;
+  text-align: center;
+}
+
+.bdg__color {
+  flex: 0 0 2.6rem;
+  height: 2.1rem;
+  padding: 0.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.bdg__formfoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.bdg__preview {
+  display: flex;
+  margin-right: auto;
+}
+
+.bdg__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bdg__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.bdg__row.is-archived {
+  background: rgba(242, 247, 240, 0.8);
+}
+
+.bdg__meta {
+  flex: 1 1 14rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.bdg__ops {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.bdg__subtitle {
+  margin: 0.4rem 0 0.2rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.bdg__archived {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* 窄屏：邮箱与元信息换行，操作按钮靠左 */
+@media (max-width: 960px) {
+  .acm__tags {
+    margin-left: 0;
+  }
+
+  .acm__mail {
+    flex-basis: 100%;
+  }
+
+  .bdg__ops {
+    margin-left: auto;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   「内容」视图里的只读提示（管理员看不到写操作时的那一行说明）
+
+   样式放在本文件而不是 `admin.css`：那个文件已经近 3000 行、且是并行改动的高发区，
+   为一个单行提示去动它不值得。类名仍按所属视图（`bps__`）命名，方便将来搬回去。
+--------------------------------------------------------------------------- */
+
+.bps__readonly {
+  margin: 0.35rem 0 0;
+  padding: 0.4rem 0.65rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.55rem;
+  background: rgba(242, 247, 240, 0.7);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+/* ---------------------------------------------------------------------------
+   `hidden` 对 `.admin-btn` 必须显式压掉 display
+
+   `admin.css:225` 有一条全局 `[hidden] { display: none }`，但 `.admin-btn`
+   自己也声明了 `display: inline-flex`——**同优先级、后写者胜**，所以 `hidden`
+   属性对后台按钮完全无效（这个坑项目里踩过一次）。凡是用 `.hidden = true`
+   藏按钮的地方，靠的就是这一条。
+--------------------------------------------------------------------------- */
+
+.admin-btn[hidden],
+.admin-iconbtn[hidden] {
+  display: none !important;
+}

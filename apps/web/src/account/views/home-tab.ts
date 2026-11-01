@@ -32,7 +32,7 @@ export interface HomeTabHandle {
  * 而这份逻辑只决定「预览里显不显示」，真实可见性永远以服务端为准。
  */
 function asView(data: MyProfile, isSelf: boolean): PublicProfile {
-  const { user, profile, meta, systemBadges } = data;
+  const { user, profile, meta, systemBadges, grantedBadges } = data;
   const canSee = (field: keyof typeof profile.privacy): boolean => {
     const level = profile.privacy[field];
     if (level === 'hidden') return false;
@@ -66,7 +66,13 @@ function asView(data: MyProfile, isSelf: boolean): PublicProfile {
     tags: tags.length > 0 ? tags : null,
     customBadges: customBadges.length > 0 ? customBadges : null,
     systemBadges,
-    stats: { days, badges: systemBadges.length + customBadges.length, tags: tags.length },
+    // 授予徽章与系统徽章一样**不受**隐私开关影响（站长背书是公开身份）。
+    grantedBadges,
+    stats: {
+      days,
+      badges: systemBadges.length + grantedBadges.length + customBadges.length,
+      tags: tags.length,
+    },
   };
 }
 

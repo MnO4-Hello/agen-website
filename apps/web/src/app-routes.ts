@@ -16,6 +16,7 @@
  */
 
 import { NAV_ROUTES, type NavItemId } from './components/navbar';
+import type { SiteConfig } from './site/config';
 
 export type AppRoute = NavItemId | 'login' | 'account' | 'u';
 
@@ -29,6 +30,44 @@ const ALL: readonly string[] = APP_ROUTES;
 
 export function isAppRoute(value: string): value is AppRoute {
   return ALL.includes(value);
+}
+
+/**
+ * 按站点模式判断一条路由是否还开着。
+ *
+ * 关掉一条路由**不需要在 `main.ts` 里删 case**：`matchRoute()` 只在传入的 `routes`
+ * 表里找，表里没有的 id 会被统一归一成 `fallback`（`home`）。所以「关掉博客」的
+ * 实际效果是：地址栏敲 `#blog` 也落在首页，导航里也不会有那一项——正是想要的。
+ *
+ * `works` / `about` 恒为 `true`：它们是备案时填报的「网站用途」本身。
+ */
+export function isRouteEnabled(route: AppRoute, config: SiteConfig): boolean {
+  switch (route) {
+    case 'blog':
+      return config.features.blog;
+    case 'message':
+      return config.features.message;
+    case 'login':
+    case 'account':
+      return config.features.account;
+    case 'u':
+      return config.features.profiles;
+    case 'home':
+    case 'works':
+    case 'about':
+      return true;
+  }
+}
+
+/**
+ * 当前模式下可用的路由表，交给 `createRouter()`。
+ *
+ * `home` 永远留在表里：它是 `fallback`，不在表里的话 `matchRoute` 会返回一个
+ * 拿不到视图的 id。这行兜底看着多余，但真删掉就是整站白屏。
+ */
+export function routesForSite(config: SiteConfig): readonly AppRoute[] {
+  const routes = APP_ROUTES.filter((id) => isRouteEnabled(id, config));
+  return routes.includes('home') ? routes : ['home', ...routes];
 }
 
 /** 是不是「某个导航项」——`#login` / `#account` / `#u/…` 要清掉导航高亮。 */

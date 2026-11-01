@@ -53,10 +53,16 @@ function createHead(): HeadHandle {
   const name = el('h1', { className: 'account-page__name' });
   const handle = el('span', { className: 'account-page__handle' });
   const role = el('span', { className: 'account-page__role' });
+  /*
+   * 禁言标记挂在身份行上：账号被禁言时，人会先来个人中心看「我怎么了」。
+   * 默认 hidden，`applyUser` 里按会话里的处罚态决定要不要显示。
+   */
+  const mutedTag = el('span', { className: 'account-page__muted' });
+  mutedTag.hidden = true;
   const signature = el('p', { className: 'account-page__signature' });
   signature.hidden = true;
 
-  const meta = el('p', { className: 'account-page__meta' }, [handle, role]);
+  const meta = el('p', { className: 'account-page__meta' }, [handle, role, mutedTag]);
   const identity = el('div', { className: 'account-page__identity' }, [name, meta, signature]);
 
   /*
@@ -86,6 +92,20 @@ function createHead(): HeadHandle {
       handle.textContent = `@${user.username}`;
       role.textContent = ROLE_LABEL[user.role];
       publicLink.href = profileHref(user.username);
+
+      // 禁言态：写成「已禁言至 …」，hover 里放原因——头像旁的地方太窄，塞不下一整句。
+      if (state.moderation) {
+        mutedTag.hidden = false;
+        mutedTag.textContent =
+          state.moderation.mutedLabel === '永久'
+            ? '已禁言'
+            : `已禁言至 ${state.moderation.mutedLabel}`;
+        mutedTag.title = state.moderation.mutedReason || '被禁言期间不能发帖、回复与留言。';
+      } else {
+        mutedTag.hidden = true;
+        mutedTag.textContent = '';
+        mutedTag.removeAttribute('title');
+      }
 
       // 头像是**换节点**而不是改属性：`createAvatar` 每次返回新元素，直接替换最省事，
       // 也顺带把「上传失败回退首字」的逻辑一起拿到。

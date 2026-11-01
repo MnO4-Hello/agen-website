@@ -17,6 +17,7 @@ import {
   factRow,
   formatDate,
   formatDateTime,
+  grantedBadgeChip,
   systemBadgeChip,
   tagChip,
 } from '../pieces';
@@ -39,7 +40,7 @@ export function createProfileTab(options: ProfileTabOptions): ProfileTabHandle {
   element.append(body);
 
   const render = (data: MyProfile): void => {
-    const { user, profile, meta, systemBadges } = data;
+    const { user, profile, meta, systemBadges, grantedBadges } = data;
 
     /* 统计 */
     const stats = accBlock({ title: '一眼看完' });
@@ -51,7 +52,10 @@ export function createProfileTab(options: ProfileTabOptions): ProfileTabHandle {
         el('span', { className: 'uprofile__stat-label', text: '加入天数' }),
       ]),
       el('div', { className: 'uprofile__stat' }, [
-        el('span', { className: 'uprofile__stat-value', text: String(systemBadges.length + profile.badges.length) }),
+        el('span', {
+          className: 'uprofile__stat-value',
+          text: String(systemBadges.length + grantedBadges.length + profile.badges.length),
+        }),
         el('span', { className: 'uprofile__stat-label', text: '徽章' }),
       ]),
       el('div', { className: 'uprofile__stat' }, [
@@ -119,10 +123,11 @@ export function createProfileTab(options: ProfileTabOptions): ProfileTabHandle {
     /* 徽章 */
     const badges = accBlock({
       title: '徽章',
-      note: '深色实心的是系统给的，描边的是你自己造的。',
+      note: '实心深色的是系统给的，金边的是站长授予的，细描边的是你自己造的。',
     });
     const badgeNodes = [
       ...systemBadges.map((badge) => systemBadgeChip(badge)),
+      ...grantedBadges.map((badge) => grantedBadgeChip(badge)),
       ...profile.badges.map((badge) => customBadgeChip(badge)),
     ];
     badges.body.append(

@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>阿根</title>
+    <!-- 站点图标用的是首屏那张头像。**裁到了头部**：整张头肩图缩到 16px 只剩一团深色
+         头发，眼睛看不出来；裁切之后在标签页里还能认出是这个人。
+         favicon.ico 里塞了 16/32/48 三档（老浏览器只认它），png 给现代浏览器挑。 -->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/favicon-16.png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- 跑马灯的压缩显示体。preload 让它在解析阶段就开始取，既避免首帧闪回系统字体，
          也保证字体在 `load` 之前就绪（幽灵字母的份数是按原生字宽算的，字宽一变份数就变）。
          字体请求必须带 crossorigin，否则会重复下载一次。 -->

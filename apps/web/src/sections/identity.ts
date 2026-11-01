@@ -52,7 +52,7 @@ const TITLE_MS = 1500;
 const TITLE_CARET_HIDE_AT = TITLE_AT + TITLE_MS + 550;
 /** 标题打完稍停，粒子开始汇聚。 */
 const ASSEMBLY_AT = TITLE_AT + TITLE_MS + 350;
-/** 汇聚 → 变形 → 模糊 → 换图 → 模糊褪去，整段时长。 */
+/** 汇聚 → 变形 → 溶解 → 照片淡入，整段时长。 */
 const ASSEMBLY_MS = 4000;
 const ASSEMBLY_END = ASSEMBLY_AT + ASSEMBLY_MS;
 /** “你好！”在粒子开始汇聚之后、马赛克成型之前打出来。 */
@@ -362,9 +362,9 @@ export function createIdentitySection(options: IdentitySectionOptions): Identity
     caret.classList.toggle('is-holding', typed >= 1 && timeline < TITLE_CARET_HIDE_AT);
     caret.classList.toggle('is-gone', timeline >= TITLE_CARET_HIDE_AT);
 
-    // 头像：汇聚 -> 变形 -> 模糊 -> 换图 -> 模糊褪去。
+    // 头像：汇聚 -> 变形 -> 马赛克溶解 -> 照片淡入。
     particles?.setProgress(span(timeline, ASSEMBLY_AT, ASSEMBLY_END));
-    // 说明文字跟着模糊一起显出来。
+    // 说明文字跟着溶解一起显出来。
     portrait.style.setProperty(
       '--reveal',
       easeOut(span(timeline, ASSEMBLY_END - 1200, ASSEMBLY_END)).toFixed(4),
@@ -420,10 +420,13 @@ export function createIdentitySection(options: IdentitySectionOptions): Identity
     syncParticles();
   };
 
-  /** 粒子层的显隐：模糊褪去、照片接管之后就收掉；下沉时也收掉。 */
+  /** 粒子层的显隐：溶解淡入结束、照片接管之后就收掉；下沉时也收掉。 */
   const syncParticles = (): void => {
     const settled = timeline >= ASSEMBLY_END - 250;
-    particleCanvas.style.opacity = settled || sinkValue > 0.001 ? '0' : '1';
+    const hidden = settled || sinkValue > 0.001;
+    particleCanvas.style.opacity = hidden ? '0' : '1';
+    // 光靠 opacity 只是不显示，`scroll` / `resize` 仍会让它整屏重绘一次；顺手停掉。
+    particles?.setEnabled(!hidden);
   };
 
   // -- 跳过：开场太长时一键落到终态 ------------------------------------------

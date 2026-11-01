@@ -98,6 +98,14 @@ body.is-skills-locked {
   --account-reserve: 7rem;
 }
 
+/*
+ * `off`：右上角根本没有账号位（`SITE_MODE=display` 时 `createNavbar()` 不建它）。
+ * 预留必须归零，否则 nav 会停在离右缘 9.5rem 的地方，看着像掉了半块。
+ */
+.site-header[data-auth='off'] {
+  --account-reserve: 0rem;
+}
+
 /* The bar surface is a pseudo-element so it can dissolve on scroll while the
    brand and nav stay put in the corners. */
 .site-header::before {
@@ -2798,7 +2806,8 @@ body.is-skills-locked {
   }
 
   /* No intro to skip when the scene is static. */
-  .identity__skip {
+  .identity__skip,
+  .skills__skip {
     display: none;
   }
 
@@ -2962,6 +2971,52 @@ body.is-skills-locked {
 
 .work__skip:hover,
 .work__skip:focus-visible {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: var(--brand);
+  box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
+}
+
+/* -- 「我会什么？」的「跳过」胶囊 -------------------------------------------
+   与 `.work__skip` / `.identity__skip` 同一套材质与层级（这三个是全站仅有的三枚
+   「跳过」按钮，改一个就一起改，别让它们长得不一样）。显隐由
+   `../sections/skills.ts` 的 showSkip / hideSkip 切换。
+
+   同样是 `position: fixed`，所以挂在 `section.skills` 上（只有 relative）——
+   放进 `.skills__sticky` 会被它的 `transform` 当成包含块，跟着面板一起动。 */
+.skills__skip {
+  position: fixed;
+  right: clamp(1rem, 4vw, 2.5rem);
+  bottom: clamp(1rem, 4vw, 2.5rem);
+  /* 高于光球层，低于导航栏（30）。 */
+  z-index: 20;
+  margin: 0;
+  padding: 0.6rem 1.3rem;
+  border: 1px solid rgba(206, 224, 200, 0.95);
+  border-radius: 999px;
+  background: rgba(246, 250, 243, 0.86);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--brand-strong);
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 61, 43, 0.12);
+  opacity: 0;
+  transform: translateY(0.6rem);
+  pointer-events: none;
+  transition: opacity 0.28s var(--ease-out), transform 0.28s var(--ease-out),
+    background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+
+.skills__skip.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+
+.skills__skip:hover,
+.skills__skip:focus-visible {
   background: rgba(255, 255, 255, 0.98);
   border-color: var(--brand);
   box-shadow: 0 8px 22px rgba(31, 61, 43, 0.2);
@@ -3521,13 +3576,38 @@ html.lenis body {
     linear-gradient(150deg, #23412f, #0f2417);
 }
 
+/* 真图（现在只有博客封面）：盒子仍按 `--ratio` 定高，图在里面裁切。
+   `.a__img` 是 `width:100%; height:auto` + `<img width/height>` 定比例，默认
+   `object-fit: fill` 会把任意比例的封面**拉变形**，所以这一行是必须的。 */
+.s-my-way .a-object--frame .a__img--photo {
+  object-fit: cover;
+}
+
+/* 图注两行：标题 + 发布时间。原来只有一行，`line-height: 1` 会把第二行顶到第一行上。 */
 .s-my-way .a-object--frame .a__caption {
-  display: block;
+  display: grid;
+  gap: 0.3rem;
   padding: 1.2rem 0;
   color: var(--color-white);
-  font: 400 12px/1 var(--font-family-fraktion);
+  font: 400 12px/1.25 var(--font-family-fraktion);
   text-align: center;
   text-transform: uppercase;
+}
+
+/* 标题最多两行：相框宽度固定 500px，长标题不截断会把整块盒子撑高、
+   进而改变它在飞过镜头时的遮挡关系。 */
+.s-my-way .a-object--frame .a__caption-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* 时间：低一档，避免和标题抢注意力。 */
+.s-my-way .a-object--frame .a__meta {
+  color: rgb(255 255 255 / 62%);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
 }
 
 /* 用伪元素补出盒子的「厚度」——背面 + 四个侧面。 */
@@ -6170,7 +6250,7 @@ html.lenis body {
   transform: translateY(-1px);
 }
 
-/* ---------- README 排版（`content/markdown.ts` 的产物） ---------- */
+/* ---------- README / 帖子正文排版（`shared/markdown.ts` 的产物） ---------- */
 
 .md-body {
   color: var(--text);
@@ -6304,4 +6384,61 @@ html.lenis body {
   .wdetail__shot img {
     transition: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   「整站关闭」页（SITE_MODE=maintenance）
+
+   见 pages/maintenance.ts。刻意不复用首页的任何版式：这一页要在**没有导航栏、
+   没有任何站点脚本**的前提下也站得住，所以它只依赖这里的几个 token。
+   背景沿用 body 的渐变（body 样式不受 `.app-shell` 影响），所以这里不画底。
+--------------------------------------------------------------------------- */
+.site-maintenance {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  /* iOS Safari 的 100vh 会把地址栏算进去，用 dvh 兜一层。 */
+  min-height: 100dvh;
+  padding: 2rem 1.25rem;
+}
+
+.site-maintenance__inner {
+  /* 36rem：说明那段中文在 32rem 下会折成「……有事 / 可以邮件联系。」这种孤行。 */
+  max-width: 36rem;
+  text-align: center;
+}
+
+.site-maintenance__badge {
+  display: inline-block;
+  margin: 0 0 1.25rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--brand-strong);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.site-maintenance__title {
+  margin: 0 0 1rem;
+  font-size: clamp(1.75rem, 5vw, 2.75rem);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.site-maintenance__note {
+  margin: 0 0 1.75rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.85;
+}
+
+.site-maintenance__mail {
+  color: var(--brand-strong);
+  font-size: 0.9rem;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
 }

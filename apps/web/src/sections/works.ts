@@ -27,6 +27,7 @@ import {
 } from '../content/works';
 import { gsap, ScrollTrigger } from '../scene/gsap-support';
 import { createMyWay, type MyWayHandle } from '../scene/my-way';
+import type { MyWayFrameContent } from '../content/my-way';
 import type { ScrollToController } from '../scene/smooth-scroll';
 import { prefersReducedMotion } from '../scene/text-support';
 import { createWorkStage, type WorkStageHandle } from '../scene/work-stage';
@@ -48,6 +49,13 @@ export interface WorksSectionOptions {
    *     `--height` 与卡数必须是确定的 34 / 1700lvh，不能随库里有多少作品而变。
    */
   readonly cardsPromise?: Promise<readonly WorkCardContent[]>;
+  /**
+   * 「我的方式」那 16 个相框的内容（首页注入 `fetchPosts().then(toMyWayFrames)`）。
+   *
+   * 与 `cardsPromise` 分开传，理由一样：这里必须**同步建完整段**，数据晚到就热替换。
+   * `devShotMode` 下同样跳过——截图基准要的是固定的 16 个占位相框。
+   */
+  readonly framesPromise?: Promise<readonly MyWayFrameContent[]>;
 }
 
 export interface WorksSectionHandle {
@@ -759,6 +767,20 @@ export function createWorksSection(options: WorksSectionOptions = {}): WorksSect
         // `setCards` 内部已经做完了「改高度 → 重建时间轴 → 静态终态复核 → refresh」，
         // 这里不再调 `applyLayout()`：那会把时间轴立刻再建一遍，白跑一次全量重建。
         stage.setCards(cards);
+      })
+      .catch(() => undefined);
+  }
+
+  /*
+   * 相框内容：博客里带封面的帖子（`toMyWayFrames` 已经洗牌并循环填满 16 个）。
+   *
+   * 与上面同理——空数组或失败都保持占位。这一路不碰几何，所以不需要重建时间轴。
+   */
+  if (options.framesPromise && !devShotMode) {
+    void options.framesPromise
+      .then((frames) => {
+        if (disposed || frames.length === 0) return;
+        outro.setFrames(frames);
       })
       .catch(() => undefined);
   }

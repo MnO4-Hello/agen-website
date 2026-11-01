@@ -91,16 +91,40 @@ function renderChecking(): void {
  */
 async function maybePreview(): Promise<boolean> {
   if (!import.meta.env.DEV) return false;
-  const requested = new URLSearchParams(location.search).get('preview');
-  if (requested !== 'console' && requested !== 'files' && requested !== 'works') return false;
+  const params = new URLSearchParams(location.search);
+  const requested = params.get('preview');
+  if (
+    requested !== 'console' &&
+    requested !== 'files' &&
+    requested !== 'works' &&
+    requested !== 'content' &&
+    requested !== 'guestbook' &&
+    requested !== 'accounts' &&
+    requested !== 'badges'
+  ) {
+    return false;
+  }
 
   const { createPreviewViews } = await import('./preview');
-  showPanel({ authenticated: true, user: 'admin' }, createPreviewViews(requested), requested);
+  /*
+   * 预览默认按**站长**渲染（这样所有分区都在，方便截图）；`&as=admin` 可以切到管理员，
+   * 用来确认「作品 / 徽章」这两项确实被 `minRole` 收起来了。
+   */
+  const role = params.get('as') === 'admin' ? 'admin' : 'owner';
+  showPanel({ authenticated: true, user: 'admin', role, source: 'env' }, createPreviewViews(requested), requested);
   return true;
 }
 
 /** `?view=` 可直达的功能。加新视图时记得同步这里，否则深链会静默落到控制台。 */
-const DEEP_LINKS: readonly AdminViewId[] = ['console', 'files', 'works'];
+const DEEP_LINKS: readonly AdminViewId[] = [
+  'console',
+  'files',
+  'works',
+  'content',
+  'guestbook',
+  'accounts',
+  'badges',
+];
 
 async function boot(): Promise<void> {
   if (await maybePreview()) return;

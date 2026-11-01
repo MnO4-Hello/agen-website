@@ -11,6 +11,7 @@
  *      命中保留字。原值照旧保留，用于展示。
  */
 
+import type { ModerationState } from './moderation.js';
 import type { ProfileData } from './profile-types.js';
 
 /** 四个层级里的三个「人」；游客不是一个账号，所以不在这个联合里。 */
@@ -45,6 +46,17 @@ export interface UserRecord {
   passwordHash: string | null;
   role: Role;
   status: UserStatus;
+  /**
+   * 处罚记录（封禁 / 禁言）。
+   *
+   * 和 `status` 的分工：`status` 只说「账号被永久停用」，`moderation` 才有
+   * 「谁、因为什么、到哪天」。**能不能用**一律走 `moderation.ts` 的 `isActive()`，
+   * 别再直读 `status`（限期封禁不会改 `status`）。
+   *
+   * 老记录没有这个字段，由 `store.ts` 的 `parseState()` 在内存里补默认值，
+   * 不做落盘迁移——与 `profile` 同一策略。
+   */
+  moderation?: ModerationState;
   /** 本期恒为空串，前端按「首字符 + 派生色」画默认头像。 */
   avatarUrl: string;
   identities: IdentityLink[];

@@ -24,6 +24,7 @@ import {
   signUserToken,
   userCookieHeader,
 } from '../users/session.js';
+import { activeBan, isActive, moderationOf, untilLabel } from '../users/moderation.js';
 import { createUser, findByLogin, publicOf, recordLogin } from '../users/store.js';
 import { DUMMY_HASH, verifyPassword } from '../users/password.js';
 import { parseLoginBody, parseRegisterBody } from '../users/validate.js';
@@ -110,7 +111,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     noStore(reply);
     try {
       const user = await resolveUser(request);
-      return reply.send(user ? { authenticated: true, user: publicOf(user) } : { authenticated: false });
+      if (!user) return reply.send({ authenticated: false });
+      return reply.send({ authenticated: true, user: publicOf(user), moderation: moderationOf(user) });
     } catch (error) {
       return fail(app, reply, error);
     }
@@ -160,11 +162,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           .send({ error: 'invalid_credentials', message: '用户名/邮箱或密码不对。' });
       }
 
-      // 停用放到密码通过之后再判：否则任何人输入一个存在的用户名都能探出「这个号被停了」。
-      if (record.status !== 'active') {
-        return reply
-          .code(403)
-          .send({ error: 'account_disabled', message: '这个账号已被停用，请联系站长。' });
+      // 停用/封禁放到密码通过之后再判：否则任何人输入一个存在的用户名都能探出「这个号被停了」。
+      const ban = activeBan(record);
+      if (ban || !isActive(record)) {
+        return reply.code(403).send({
+          error: ban ? 'account_banned' : 'account_disabled',
+          message: ban
+            ? ban.until === null
+              ? '这个账号已被永久封禁。'
+              : `这个账号已被封禁至 ${untilLabel(ban.until)}。`
+            : '这个账号已被停用，请联系站长。',
+          // 两条附加信息都给前端：登录表单要显示「到哪天」「为什么」。
+          until: ban?.until ?? null,
+          reason: ban?.reason ?? '',
+        });
       }
 
       loginLimit.clear(request.ip);
@@ -176,7 +187,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         'set-cookie',
         userCookieHeader(signUserToken(record.id, config), config, Math.floor(config.ttlMs / 1000)),
       );
-      return reply.send({ user: publicOf(record) });
+      return reply.send({ user: publicOf(record), moderation: moderationOf(record) });
     } catch (error) {
       return fail(app, reply, error);
     }

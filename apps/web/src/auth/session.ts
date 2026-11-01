@@ -16,6 +16,7 @@ import {
   postRegister,
   type AuthResult,
   type LoginInput,
+  type ModerationState,
   type PublicUser,
   type RegisterInput,
 } from './api';
@@ -23,7 +24,17 @@ import {
 export type AuthState =
   | { readonly status: 'unknown' }
   | { readonly status: 'guest' }
-  | { readonly status: 'user'; readonly user: PublicUser };
+  | {
+      readonly status: 'user';
+      readonly user: PublicUser;
+      /**
+       * 禁言态：没被禁言就是 `null`。
+       *
+       * 挂在状态上而不是「用到时再查」——留言编辑器与博客回复框都要在**第一帧**就
+       * 决定「能不能提交」，多一次异步查询就会闪一下可点的按钮。
+       */
+      readonly moderation: ModerationState | null;
+    };
 
 let state: AuthState = { status: 'unknown' };
 const listeners = new Set<(next: AuthState) => void>();
@@ -62,12 +73,21 @@ let inFlight: Promise<AuthState> | null = null;
 export function hydrate(): Promise<AuthState> {
   inFlight ??= (async () => {
     const result = await fetchSession();
-    set(result.ok && result.user ? { status: 'user', user: result.user } : { status: 'guest' });
+    set(
+      result.ok && result.user
+        ? { status: 'user', user: result.user, moderation: result.moderation }
+        : { status: 'guest' },
+    );
     return state;
   })().finally(() => {
     inFlight = null;
   });
   return inFlight;
+}
+
+/** 当前是否被禁言（只在登录态下可能为真）。 */
+export function currentModeration(): ModerationState | null {
+  return state.status === 'user' ? state.moderation : null;
 }
 
 /** 截图 / 预览模式用：不碰网络，直接落成确定的游客态。 */
@@ -77,14 +97,14 @@ export function markGuest(): void {
 
 export async function login(input: LoginInput): Promise<AuthResult> {
   const result = await postLogin(input);
-  if (result.ok) set({ status: 'user', user: result.user });
+  if (result.ok) set({ status: 'user', user: result.user, moderation: result.moderation });
   return result;
 }
 
 export async function register(input: RegisterInput): Promise<AuthResult> {
   // 后端注册成功即签发 cookie，所以这里同样直接进登录态，不必再走一次登录。
   const result = await postRegister(input);
-  if (result.ok) set({ status: 'user', user: result.user });
+  if (result.ok) set({ status: 'user', user: result.user, moderation: result.moderation });
   return result;
 }
 
@@ -107,7 +127,8 @@ export async function logout(): Promise<void> {
 export function applyUser(patch: Partial<PublicUser> & { id?: string }): void {
   if (state.status !== 'user') return;
   if (patch.id !== undefined && patch.id !== state.user.id) return;
-  set({ status: 'user', user: { ...state.user, ...patch } });
+  // 处罚态与用户资料无关，原样带过去（局部更新资料不该顺手解禁）。
+  set({ status: 'user', user: { ...state.user, ...patch }, moderation: state.moderation });
 }
 
 /* ---------------------------------------------------------------------------

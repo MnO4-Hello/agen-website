@@ -76,11 +76,30 @@ export interface SystemBadge {
   hint: string;
 }
 
+/**
+ * 站长授予的徽章。
+ *
+ * 与 `CustomBadge`（自己造的）在形状上几乎一样，但**来源完全不同**：它由
+ * `apps/api/data/badges.json` 的目录 + 授予记录决定，用户改不了自己的。
+ * 所以渲染上必须有第三种长相（金边 + 「授予」角标），否则「谁都能自封」。
+ */
+export interface GrantedBadge {
+  badgeId: string;
+  label: string;
+  color: string;
+  emoji: string;
+  hint: string;
+  grantedAt: string;
+  /** 目录项已下架：徽章仍在他身上，只是不再发给别人。 */
+  archived: boolean;
+}
+
 export interface MyProfile {
   user: PublicUser;
   profile: ProfileData;
   meta: { lastLoginAt: string | null; updatedAt: string };
   systemBadges: SystemBadge[];
+  grantedBadges: GrantedBadge[];
 }
 
 export interface PublicProfile {
@@ -104,6 +123,7 @@ export interface PublicProfile {
   tags: string[] | null;
   customBadges: CustomBadge[] | null;
   systemBadges: SystemBadge[];
+  grantedBadges: GrantedBadge[];
   stats: { days: number; badges: number; tags: number };
 }
 

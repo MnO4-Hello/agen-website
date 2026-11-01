@@ -55,7 +55,7 @@ export interface ConsoleSource {
     handlers: {
       onLog: (entry: LogEntry) => void;
       onStats: (stats: ServerStats) => void;
-      onState: (state: 'open' | 'error') => void;
+      onState: (state: 'open' | 'error' | 'revoked') => void;
     },
   ) => () => void;
 }
@@ -265,10 +265,21 @@ export function createConsoleView(source: ConsoleSource = liveSource): AdminView
     });
   }
 
-  function setConn(state: 'connecting' | 'open' | 'error'): void {
-    connDot.className = `meter__dot${state === 'open' ? ' is-ok' : state === 'error' ? ' is-bad' : ' is-wait'} `;
-    connText.textContent = state === 'open' ? '已连接' : state === 'error' ? '重连中…' : '连接中…';
+  function setConn(state: 'connecting' | 'open' | 'error' | 'revoked'): void {
+    connDot.className = `meter__dot${state === 'open' ? ' is-ok' : state === 'error' || state === 'revoked' ? ' is-bad' : ' is-wait'} `;
+    connText.textContent =
+      state === 'open'
+        ? '已连接'
+        : state === 'revoked'
+          ? '需要重新登录'
+          : state === 'error'
+            ? '重连中…'
+            : '连接中…';
     if (state === 'open') foot.textContent = '日志只保留在当前进程内存里（最近 1000 条），重启后端即清空。这里只读——要执行命令请用终端。';
+    if (state === 'revoked') {
+      // 权限被撤（或会话过期）：停掉重连，并说清楚该做什么，而不是永远「重连中」。
+      foot.textContent = '日志流已断开：你的后台权限可能已变更，请重新登录。';
+    }
   }
 
   function applyStats(stats: ServerStats): void {
@@ -312,6 +323,11 @@ export function createConsoleView(source: ConsoleSource = liveSource): AdminView
           applyStats(result.data.stats);
           if (paused) updatePauseButton();
         });
+        return;
+      }
+      if (state === 'revoked') {
+        // 重连已经主动停了，不要再画「重连中…」，否则界面会一直骗人。
+        setConn('revoked');
         return;
       }
       setConn('error');

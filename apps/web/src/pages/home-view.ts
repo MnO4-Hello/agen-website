@@ -21,8 +21,10 @@ import { createLeafField } from '../scene/leaf-field';
 import type { ScrollToController } from '../scene/smooth-scroll';
 import type { RouteView } from '../router';
 import { fetchWorks } from '../works/api';
-import { toWallCards } from '../works/present';
+import { toMyWayFrames, toWallCards } from '../works/present';
+import { fetchPosts } from '../blog/api';
 import type { WorkCardContent } from '../content/works';
+import type { MyWayFrameContent } from '../content/my-way';
 
 export interface HomePageViewOptions {
   /**
@@ -58,7 +60,21 @@ export function createHomePageView(options: HomePageViewOptions): RouteView {
     .then((result) => toWallCards(result.works))
     .catch(() => []);
 
-  const works = createWorksSection({ scrollTo: options.scrollTo, cardsPromise });
+  /*
+   * 结尾「我的方式」那 16 个 3D 相框显示博客的内容：封面 + 标题 + 发布时间。
+   *
+   * 走的是公开列表接口（只取 30 条＝上限），与服务端一次读全量再排序的代价相当。
+   * 拿不到就返回空数组——相框保持原来的占位面，不把整段变成白框。
+   */
+  const blogAbort = new AbortController();
+  const framesPromise: Promise<readonly MyWayFrameContent[]> = fetchPosts(
+    { q: '', categoryId: '', tag: '', sort: 'new', cursor: '', limit: 30 },
+    blogAbort.signal,
+  )
+    .then((result) => (result.ok ? toMyWayFrames(result.data.posts) : []))
+    .catch(() => []);
+
+  const works = createWorksSection({ scrollTo: options.scrollTo, cardsPromise, framesPromise });
 
   // 页面最后是「Let's Rock」圆盘 + 页脚（参考站 wodniack.dev 的 s-cta / site-foot）。
   // 与 `.works` 同级挂在 shell 下，所以 works 的截图模式（`html.is-shot-mode .app-shell > *`）
@@ -78,8 +94,9 @@ export function createHomePageView(options: HomePageViewOptions): RouteView {
       });
     },
     dispose: () => {
-      // 先取消在途请求：视图都要拆了，没必要再等一次响应回来触发 setCards。
+      // 先取消在途请求：视图都要拆了，没必要再等一次响应回来触发 setCards / setFrames。
       worksAbort.abort();
+      blogAbort.abort();
       // 先停逐帧读 rect 的东西（画布），再拆板块——反过来的话枫叶会对着已被摘掉的
       // 节点量最后几帧。
       disposeLeafField?.();

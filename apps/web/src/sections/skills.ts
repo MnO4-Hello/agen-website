@@ -39,6 +39,8 @@ import {
   SKILLS_PICK_SUB,
   SKILLS_RELEASE_LABEL,
   SKILLS_RELEASE_TEXT,
+  SKILLS_SKIP_HINT,
+  SKILLS_SKIP_LABEL,
   SKILLS_TITLE,
   type SkillCardContent,
 } from '../content/skills';
@@ -629,6 +631,28 @@ export function createSkillsSection(options: SkillsSectionOptions = {}): SkillsS
   sticky.append(panel);
   section.append(orbHost, sticky);
 
+  /* —— 「跳过」胶囊 ——
+     入场要 5.5 秒：标题落下、先画一张牌、再散成扇形。想直接看内容的人需要一个出口，
+     所以播放期间在右下角浮出一枚胶囊，点一下就把时间线拉到末端（与自然播完走同一条
+     收尾路径）。材质与层级照抄 `.identity__skip`——全站按钮只有这一种长相。
+
+     挂 `section`（只有 `position: relative`）而**不是** `.skills__sticky`：后者带
+     `transform`，会成为 `position: fixed` 的包含块，把按钮拴在面板上一起动。 */
+  let skipButton: HTMLButtonElement | null = null;
+  if (!reduced) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'skills__skip';
+    button.textContent = SKILLS_SKIP_LABEL;
+    button.setAttribute('aria-label', SKILLS_SKIP_HINT);
+    // 用箭头包一层：`skipIntro` 在后面才定义，等真正点击时肯定已经就绪。
+    button.addEventListener('click', () => skipIntro());
+    section.append(button);
+    skipButton = button;
+  }
+  const showSkip = (): void => skipButton?.classList.add('is-visible');
+  const hideSkip = (): void => skipButton?.classList.remove('is-visible');
+
   // -- 状态 --------------------------------------------------------------------
 
   let orbField: OrbFieldHandle | null = null;
@@ -842,6 +866,8 @@ export function createSkillsSection(options: SkillsSectionOptions = {}): SkillsS
     holding = true;
     applyLock();
     startIntro();
+    // 播放期间浮出「跳过」按钮（入场挺长，给用户一个出口）。
+    showSkip();
     update();
     return true;
   };
@@ -849,8 +875,31 @@ export function createSkillsSection(options: SkillsSectionOptions = {}): SkillsS
   const exitPlay = (): void => {
     if (!holding) return;
     holding = false;
+    // 无论自然播完还是被跳过，离开播放态就先收起「跳过」按钮（淡出）。
+    hideSkip();
     update();
     applyLock();
+  };
+
+  /**
+   * 跳过入场：把时间线直接拉到末端。
+   *
+   * 顺序有讲究：**先**把 `introDone` 置位，再 `setTimeline()`。`syncRightPanel()`
+   * 与 `pin()` 都把 `!introDone` 当门，不先置位的话跳过之后右栏仍然不切、点卡也不钉住。
+   * `setTimeline(TIMELINE_END)` 自己会打开 `.is-settled`，五张牌的 `anim.progress`
+   * 一并落到 1，所以不需要另写一份「终态」。
+   */
+  const skipIntro = (): void => {
+    if (disposed || reduced || introDone) return;
+    introDone = true;
+    if (introFrame) {
+      window.cancelAnimationFrame(introFrame);
+      introFrame = 0;
+    }
+    setTimeline(TIMELINE_END);
+    // 对齐 introStep 自然播完时的那次补调（开场期间右栏被 gate 住了）。
+    syncRightPanel();
+    exitPlay();
   };
 
   const introStep = (now: number): void => {
@@ -1019,6 +1068,9 @@ export function createSkillsSection(options: SkillsSectionOptions = {}): SkillsS
         lockRoot.classList.remove('is-skills-locked');
         lockRoot.style.top = '';
       }
+      // 跳过按钮连着它的监听一起从文档里摘掉。
+      skipButton?.remove();
+      skipButton = null;
       entrance.disconnect();
       outlineResize?.disconnect();
       orbField?.dispose();
