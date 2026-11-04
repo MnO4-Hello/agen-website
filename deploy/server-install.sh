@@ -119,6 +119,11 @@ IP=$(curl -s --max-time 3 http://100.100.100.200/latest/meta-data/eipv4 2>/dev/n
 [ -n "${IP:-}" ] || IP=$(curl -s --max-time 3 http://100.100.100.200/latest/meta-data/public-ipv4 2>/dev/null || true)
 [ -n "${IP:-}" ] || IP=$(curl -s --max-time 5 https://ifconfig.me 2>/dev/null || true)
 
+# 站点内容（root / 缓存 / 反代 / 兜底路由）单独放 snippet：
+# 80 和 443 两个 server 都 include 它，切 HTTPS 时不用维护两份配置。
+install -d -m 755 /etc/nginx/snippets
+install -m 644 "$APP_DIR/deploy/nginx-agen-app.conf" /etc/nginx/snippets/agen-app.conf
+
 install -m 644 "$APP_DIR/deploy/nginx-agen.conf" /etc/nginx/conf.d/agen.conf
 rm -f /etc/nginx/conf.d/default.conf
 if [ -n "${IP:-}" ]; then
@@ -127,6 +132,18 @@ if [ -n "${IP:-}" ]; then
 else
   warn "没探测到公网 IP，server_name 保持 _（可能被系统默认站点抢占，见文档排错表）"
 fi
+
+# HTTPS 只在证书就位后才启用：没有 /etc/nginx/ssl/agen.online.pem 就直接不装
+# 443 那份配置（否则 nginx -t 会因为找不到证书而失败，整站起不来）。
+# 装证书：bash deploy/install-cert.sh <证书.pem> <私钥.key>
+if [ -f /etc/nginx/ssl/agen.online.pem ] && [ -f /etc/nginx/ssl/agen.online.key ]; then
+  install -m 644 "$APP_DIR/deploy/nginx-agen-ssl.conf" /etc/nginx/conf.d/agen-ssl.conf
+  ok "检测到证书，已启用 443（域名 301 到 HTTPS）"
+else
+  rm -f /etc/nginx/conf.d/agen-ssl.conf
+  warn "没有证书，只监听 80；要上 HTTPS 见 docs/DEPLOY.md 附录 B"
+fi
+
 nginx -t
 systemctl enable nginx >/dev/null 2>&1 || true
 systemctl reload nginx 2>/dev/null || systemctl start nginx

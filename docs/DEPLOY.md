@@ -1,16 +1,17 @@
 # 部署到阿里云 ECS
 
-> 目标形态：**一台服务器、暂时用公网 IP、Nginx 当前门、Fastify 在后面**。
+> 目标形态：**一台服务器、Nginx 当前门、Fastify 在后面**。
 > 系统：Alibaba Cloud Linux 3 / CentOS 系（`dnf`）。
-> 暂不做：域名 + 备案 + HTTPS（文末有补齐方法）。
+> **HTTPS 已上线（2026-11-04）**：`阿根.online` 走阿里云 DV 证书，域名一律 301 到 443。
+> 备案形态见附录 C。
 
 ---
 
 ## 0. 先看清这套东西长什么样
 
 ```
-                    ┌──────────────────────── 一台 ECS（公网 IP:80）────────────────────────┐
-   浏览器 ────80───▶ │  Nginx                                                              │
+                    ┌────────────── 一台 ECS（:80 明文兜底 / :443 域名 HTTPS）──────────────┐
+   浏览器 ──443───▶ │  Nginx                                                              │
    （只认一个源）     │   ├─ /            → /srv/agen-website/apps/web/dist  （静态文件）    │
                     │   └─ /api/*       → 127.0.0.1:3000  （反向代理）                     │
                     │                          │                                          │
@@ -43,7 +44,7 @@
 | --- | --- | --- | --- |
 | 22 | TCP | 0.0.0.0/0 | SSH 登录（一般已开） |
 | 80 | TCP | 0.0.0.0/0 | 网站 |
-| 443 | TCP | 0.0.0.0/0 | 以后上 HTTPS（可以先加） |
+| 443 | TCP | 0.0.0.0/0 | HTTPS（已在用） |
 
 > 阿里云的安全组和服务器内部的防火墙是**两道门**，两道都要开。安全组不放行，服务器里配得
 > 再对，浏览器也是一直转圈到超时。
@@ -150,7 +151,8 @@ su - agen -c "pm2 restart agen-api"
 
 | # | 操作 | 期望 | 失败说明 |
 | --- | --- | --- | --- |
-| 1 | `http://服务器IP/` | 首屏正常，字体/头像都在 | 白屏 → 看 Nginx error.log |
+| 1 | `https://阿根.online/` | 首屏正常，地址栏是锁 | 白屏 → 看 Nginx error.log；证书告警 → 附录 B |
+| 1b | `http://阿根.online/` | 301 跳到 https | 没跳 → `agen-ssl.conf` 没加载 |
 | 2 | 滚到 WORK 段 | 作品墙有卡片 | 空 → 数据没进包 |
 | 3 | `http://服务器IP/api/health` | JSON | 502 → 后端没起 或 SELinux |
 | 4 | `http://服务器IP/admin.html` | 登录框出现 | 404 → `apps/web/dist/admin.html` 缺失 |
@@ -272,21 +274,81 @@ git remote add deploy ssh://agen-server/srv/agen-website
 
 `deploy/` 里的另外两份配置（`nginx-agen.conf`、`server-install.sh`）是首次装机用的。
 
-## 附录 B：以后要加域名 + HTTPS
+## 附录 B：HTTPS（已启用，2026-11-04）
 
-1. 域名解析 A 记录指向公网 IP。
-2. **大陆服务器必须先完成 ICP 备案**，否则 80/443 上的域名访问会被云厂商拦截
-   （用 IP 直接访问不受此限制，所以现在能跑）。
-3. 备案通过后，把 `/etc/nginx/conf.d/agen.conf` 里的 `server_name _;` 改成你的域名，
-   再加一个 443 的 server 块（证书可用 `certbot --nginx` 或阿里云免费证书）。
-4. 此时才把 `.env` 里补上：
+### 现在的状态
+
+| 项 | 值 |
+| --- | --- |
+| 域名 | `阿根.online` / `www.阿根.online`（配置里用 punycode `xn--xxv873h.online`） |
+| 证书 | 阿里云免费 DV（DigiCert *Encryption Everywhere DV TLS CA - G2*），**3 个月一签** |
+| 覆盖 | 裸域 + www 都在 SAN 里，共用一个 pem |
+| 存放 | `/etc/nginx/ssl/agen.online.pem`（600，root）/ `agen.online.key`（600，root） |
+| 有效期 | 抓帧时是 2026-11-04 → 2027-02-01 |
+| 协议 | TLS 1.2 / 1.3，HTTP/2，HSTS 一年 |
+
+> 📌 **ICP 备案**：这台机器在境内，域名对外提供 Web 服务按规定需要备案；没备案时云厂商
+> 可能在后续核查中拦截 80/443 上的域名访问（IP 直连不受影响）。以个人主体申报时的
+> 站点形态（`display`，不能带社区/留言/注册）见附录 C。
+
+**配置怎么分工**（三份，改一边就够）：
+
+```
+/etc/nginx/snippets/agen-app.conf   ← root / 缓存 / 反代 / try_files（80 与 443 共用）
+/etc/nginx/conf.d/agen.conf         ← 80，server_name 绑公网 IP（IP 明文兜底）
+/etc/nginx/conf.d/agen-ssl.conf     ← 80 域名 301 → 443；443 真正站点
+```
+
+> 为什么留 80 的 IP 入口：证书不含 IP，`https://IP` 浏览器必告警；留一条明文通道，
+> 证书出问题时还能 `http://IP/admin.html` 进后台救场。
+
+### 换证书 / 续期（3 个月一次）
+
+阿里云控制台 → 数字证书管理服务 → 下载 **Nginx** 格式 → 本地解压得到 `.pem` + `.key`：
+
+```bash
+bash deploy/install-cert.sh ~/Downloads/www.xn--xxv873h.online.pem \
+                            ~/Downloads/www.xn--xxv873h.online.key
+```
+
+脚本会：校验配对 → 上传到 `/etc/nginx/ssl/`（600/root）→ 同步 snippet 与 443 配置
+→ `nginx -t` → reload → 用 `openssl s_client` 验链。**换证书不用重启后端。**
+
+查剩余天数（建议加个日历提醒，剩 15 天就换）：
+
+```bash
+ssh agen-root 'openssl x509 -in /etc/nginx/ssl/agen.online.pem -noout -subject -enddate'
+```
+
+### 排错
+
+| 症状 | 原因 / 处理 |
+| --- | --- |
+| `nginx -t` 报 `cannot load certificate` | pem/key 没传上去或路径不对；重跑 `install-cert.sh` |
+| 浏览器 `NET::ERR_CERT_DATE_INVALID` | 证书过期；续期后 reload |
+| `https://域名` 打开是 Nginx 欢迎页 | `server_name` 没匹配上：确认是 punycode，且 `nginx -T \| grep server_name` |
+| 443 连不上（超时） | 安全组没放 443（第 1 步），或 `ss -lntp \| grep :443` 没监听 |
+| 改了配置没生效 | 忘了 `systemctl reload nginx` |
+| 想临时退回纯 HTTP | `rm /etc/nginx/conf.d/agen-ssl.conf && systemctl reload nginx`（HSTS 已下发的浏览器仍会强跳，需清站点数据） |
+
+### 顺带该做的两件事（**顺序不能反**）
+
+证书通了之后，才能把 cookie 标成 `Secure`（先开 Secure 再挂证书 = 直接登不进去）：
 
 ```ini
+# /srv/agen-website/.env
 ADMIN_COOKIE_SECURE=1
 USER_COOKIE_SECURE=1
 ```
 
-改完 `pm2 restart agen-api`。**顺序不能反**——先开 Secure 再挂证书，会直接登不进去。
+```bash
+su - agen -c "pm2 restart agen-api"
+```
+
+> ⚠️ 开了之后 `http://IP/admin.html` 登录会失败（Secure cookie 不发给明文连接），
+> 这是预期行为。只走域名进后台即可。
+
+`display` 模式下页脚要挂 ICP 备案号，见附录 C 第 4 条。
 
 ## 附录 C：备案形态（站点模式开关）
 

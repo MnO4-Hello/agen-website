@@ -63,6 +63,15 @@ venv/
 target/
 *.exe
 
+# ── 证书与私钥：只在服务器上（/etc/nginx/ssl/），私钥进库等于公开 ──
+deploy/certs/
+*.pem
+*.key
+*.pfx
+*.p12
+*.jks
+!apps/**/certs/*.crt
+
 # ── 临时文件 ────────────────────────────────────────────────────
 *.tmp
 # 部署用的打包产物（见 docs/DEPLOY.md 第 3 步）
