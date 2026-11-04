@@ -119,7 +119,7 @@ bash /srv/agen-website/deploy/server-install.sh
 | 开机自启 | `systemctl is-enabled pm2-agen` | `enabled` |
 | Nginx 配置 | `nginx -t` | test is successful |
 | 站点名已绑定 | `grep server_name /etc/nginx/conf.d/agen.conf` | 是公网 IP，不是 `_`（见下方「默认站点抢占」） |
-| 配置内容 | `cat /srv/agen-website/.env` | 有 `TRUST_PROXY=1`，**没有** `*_COOKIE_SECURE` |
+| 配置内容 | `cat /srv/agen-website/.env` | 有 `TRUST_PROXY=1`，**且**有 `*_COOKIE_SECURE=1`（HTTPS 已开） |
 
 ### 脚本没有代劳的两件事
 
@@ -156,7 +156,7 @@ su - agen -c "pm2 restart agen-api"
 | 2 | 滚到 WORK 段 | 作品墙有卡片 | 空 → 数据没进包 |
 | 3 | `http://服务器IP/api/health` | JSON | 502 → 后端没起 或 SELinux |
 | 4 | `http://服务器IP/admin.html` | 登录框出现 | 404 → `apps/web/dist/admin.html` 缺失 |
-| 5 | 用管理员账号登录 | 进后台 | 登录后刷新掉线 → `.env` 里有 `Secure` |
+| 5 | 用管理员账号登录（走 `https://`） | 进后台 | 登录后刷新掉线 → `.env` 里 Secure 开着却是明文访问，换 https |
 | 6 | 后台「控制台」 | 日志**逐行**实时滚动 | 卡住 → Nginx 的 SSE 段没生效 |
 | 7 | 后台「作品」传一张图 | 上传成功、详情页能看到 | 413 → `client_max_body_size` 没生效 |
 | 8 | 前台注册 → 留言 | 留言出现在留言板 | 429 → 限流；确认 `TRUST_PROXY=1` |
@@ -220,7 +220,7 @@ crontab -e -u agen     # 写入下面一行（每天 4:10）
 | 浏览器一直转圈，最后超时 | 安全组没放 80 | 第 1 步 |
 | 502 Bad Gateway | 后端没起 / SELinux / 端口不一致 | `pm2 status`、`curl 127.0.0.1:3000/api/health`、`setsebool -P httpd_can_network_connect on` |
 | 页面白屏，控制台 404 `/assets/...` | Nginx `root` 路径不对 | `ls /srv/agen-website/apps/web/dist/assets` 并核对配置 |
-| 登录成功、刷新回登录页 | cookie 带了 `Secure` 却在 http 上 | 注释掉 `*_COOKIE_SECURE` 后重启 |
+| 登录成功、刷新回登录页 | cookie 带了 `Secure` 却在 http 上 | 换 `https://` 访问；纯 IP 明文调试才需要临时注释掉 `*_COOKIE_SECURE` |
 | 上传图片 413 | Nginx `client_max_body_size` | 改 30m 并 reload |
 | 留言/回复提示「太频繁」 | 限流把所有人当成一个 IP | `.env` 加 `TRUST_PROXY=1` 并重启 |
 | 后台控制台日志不动 | SSE 被 Nginx 缓冲 | 确认 `location = /api/admin/console/stream` 生效 |
@@ -331,9 +331,9 @@ ssh agen-root 'openssl x509 -in /etc/nginx/ssl/agen.online.pem -noout -subject -
 | 改了配置没生效 | 忘了 `systemctl reload nginx` |
 | 想临时退回纯 HTTP | `rm /etc/nginx/conf.d/agen-ssl.conf && systemctl reload nginx`（HSTS 已下发的浏览器仍会强跳，需清站点数据） |
 
-### 顺带该做的两件事（**顺序不能反**）
+### cookie 的 Secure（已开启，2026-11-04）
 
-证书通了之后，才能把 cookie 标成 `Secure`（先开 Secure 再挂证书 = 直接登不进去）：
+`.env` 里已经写死：
 
 ```ini
 # /srv/agen-website/.env
@@ -341,12 +341,21 @@ ADMIN_COOKIE_SECURE=1
 USER_COOKIE_SECURE=1
 ```
 
-```bash
-su - agen -c "pm2 restart agen-api"
+顺序不能反——**先有 HTTPS 再开 Secure**，否则 cookie 在明文连接上直接被浏览器丢掉。
+
+实测（`curl` 走 443 登录）：
+
+```
+set-cookie: agen_admin=…; Path=/; HttpOnly; SameSite=Lax; Max-Age=28800; Secure
+带 cookie 再取 /api/admin/session → {"authenticated":true}
+同一个 cookie 拿去打 http://IP/api/admin/session → {"authenticated":false}  ← 明文拿不到会话
+POST /api/admin/logout → Max-Age=0; Secure（能正常清掉）
 ```
 
-> ⚠️ 开了之后 `http://IP/admin.html` 登录会失败（Secure cookie 不发给明文连接），
-> 这是预期行为。只走域名进后台即可。
+> ⚠️ 副作用：`http://121.196.175.54/admin.html` 现在**登录不进去**（Secure cookie 不发明文）。
+> 这是预期行为，后台一律走域名。
+>
+> 真要用 IP 明文救急：把这两行改成 `0`（或删掉）→ `su - agen -c "pm2 restart agen-api"`。
 
 `display` 模式下页脚要挂 ICP 备案号，见附录 C 第 4 条。
 
