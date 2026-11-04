@@ -57,7 +57,10 @@ node -e "import('sharp').then((m)=>{console.log('  ✓ sharp', m.default.version
   }
 
 echo "▶ 重启 agen-api"
-pm2 restart agen-api --update-env >/dev/null
+# ⚠️ 用 reload 而不是 restart：`pm2 restart` **不会重读** `ecosystem.config.cjs`，
+# 改了 `max_memory_restart` / env 之后 restart 等于没改（实测 768M 改完仍是 512M）。
+# `pm2 reload <file>` 会按文件重建进程定义；fork 单实例下等价于一次平滑重启。
+pm2 reload ecosystem.config.cjs --update-env >/dev/null
 pm2 save >/dev/null
 
 echo "▶ 自检"
