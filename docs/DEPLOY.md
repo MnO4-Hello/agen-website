@@ -288,7 +288,7 @@ USER_COOKIE_SECURE=1
 
 改完 `pm2 restart agen-api`。**顺序不能反**——先开 Secure 再挂证书，会直接登不进去。
 
-## 附录 C：备案形态（`SITE_MODE`）
+## 附录 C：备案形态（站点模式开关）
 
 ### 为什么要有这个开关
 
@@ -296,58 +296,94 @@ USER_COOKIE_SECURE=1
 交互式栏目——管局初审与后续的常态化核查都会点进来看实际内容。而这个仓库默认带着博客、
 留言板、注册登录和公开主页，等于一上线就踩线。
 
-所以功能层做了个开关：**同一份代码、两种形态**。真源是后端环境变量 `SITE_MODE`
-（`apps/api/src/site/mode.ts`），前端启动时问 `GET /api/site/config` 拿到同一份配置，
-据此决定画几项导航、注册哪些路由。
+所以功能层做了个开关：**同一份代码、三种形态**。
 
 | 模式 | 前台 | 接口 | 什么时候用 |
 | --- | --- | --- | --- |
 | `full`（默认） | 五项导航 + 右上角登录 | 全开 | 平时开发；不备案的部署（境外 / 仅 IP 访问） |
 | `display` | 首页 / 作品 / 关于 三项，没有登录入口 | 博客、留言、账号、公开主页一律 404 | 个人备案通过后，作为展示站上线 |
-| `maintenance` | 只有一个「备案中」页 | 除 `/api/site/config`、`/api/health` 外全 503 | 备案审核期间整站关闭 |
+| `maintenance` | 只有一个「备案中」页 | 除 `/api/site/config`、`/api/health`、`/api/admin/*` 外全 503 | 备案审核期间整站关闭 |
 
-切换只改 `.env` 一行，然后 `pm2 restart agen-api`。**前端静态产物不用重新构建**——
-这就是把开关放在后端的原因（备案过审是「想立刻生效」的事，不该逼你重新打包上传 dist）。
+### 怎么切：在后台点，不用重启
+
+登录 `/admin.html` → 左侧「**设置**」→ 选一档 → 确认。**站长专属**（管理员连入口都看不到）。
+
+- 写盘位置：`apps/api/data/site-mode.json`（已在 `.gitignore` 里，不进仓库）。
+- **接口立刻生效，不用重启进程**；已经打开的前台页面需要刷新才变。
+- 前端静态产物完全不用重新构建——配置是运行时 `GET /api/site/config` 拉的。
+
+### `.env` 里的 `SITE_MODE` 现在只是初始值
+
+真源是那个 JSON 文件。判定顺序：
+
+| `data/site-mode.json` | 生效 |
+| --- | --- |
+| 存在且合法 | **文件里的值**（后台切过） |
+| 不存在 | `.env` 的 `SITE_MODE`，没写就是 `full` |
+| 存在但读不出来 | **`display`**（fail-closed），后台会显示「读取失败，已回退」 |
+
+所以：**在后台切过之后，再改 `.env` 不会生效。** 想让 `.env` 重新说了算，
+删掉 `apps/api/data/site-mode.json` 再重启。反过来，手动编辑这个 JSON 也要重启才生效
+（进程只在启动时读一次）。
+
+`maintenance` 下 `/api/admin/*` 是**故意放行**的：整站关闭时后台必须还能进去，否则只能
+上服务器改文件才能把站救回来。
 
 ### 备案期间的操作顺序
 
-```bash
-# 1. 提交审核前，先整站关掉（审核员打开就是「备案中」）
-su - agen -c "cd /srv/agen-website && sed -i 's/^# SITE_MODE=.*/SITE_MODE=maintenance/' .env && pm2 restart agen-api"
+1. **提交审核前**，在后台切到「备案中」（要确认两次）。
+2. 确认：
 
-# 2. 确认
-curl -s https://你的域名/api/site/config     # {"mode":"maintenance",...}
-```
+   ```bash
+   curl -s https://你的域名/api/site/config     # {"mode":"maintenance",...}
+   curl -s -o /dev/null -w '%{http_code}\n' https://你的域名/   # 503
+   ```
 
-3. 备案通过后改成展示形态：
-
-```bash
-su - agen -c "cd /srv/agen-website && sed -i 's/^SITE_MODE=.*/SITE_MODE=display/' .env && pm2 restart agen-api"
-```
-
+3. **备案通过后**，在后台切到「展示站」——个人主体的申报形态就是这个，不要开回 `full`。
 4. 在页脚挂备案号（`ICP备XXXXXXXX号-1`，链接到 `https://beian.miit.gov.cn/`）——
    现在的页脚胶囊里还没有，要在 `apps/web/src/content/cta.ts` 里补一条。
 5. 30 日内做**公安联网备案**（全国互联网安全管理服务平台）。
+
+### 后台进不去时怎么救（应急通道）
+
+按可能性排序，前两条都不用重新构建前端：
+
+```bash
+# ① 只想改模式：直接改 JSON，然后重启
+su - agen -c "cd /srv/agen-website && \
+  printf '{\"version\":1,\"mode\":\"display\",\"updatedAt\":\"\",\"updatedBy\":\"manual\"}\n' \
+  > apps/api/data/site-mode.json && pm2 restart agen-api"
+
+# ② 让 .env 重新说了算：删掉覆盖文件
+rm -f /srv/agen-website/apps/api/data/site-mode.json
+su - agen -c "cd /srv/agen-website && pm2 restart agen-api"
+
+# ③ 后台登录 503：说明 .env 里的 ADMIN_USER / ADMIN_PASSWORD / ADMIN_SESSION_SECRET 没配全
+grep -c '^ADMIN_' /srv/agen-website/.env     # 应该是 3
+```
+
+改完之后用 `curl -s http://127.0.0.1:3000/api/site/config` 确认。
 
 ### ⚠️ `display` 不是「骗过审核」
 
 `display` 只是让站的形态**符合个人主体的申报内容**。个人备案的网站本身就不允许开
 社区，所以：
 
-- 备案通过后如果又把 `SITE_MODE` 改回 `full`，被抽查到一样会被**注销备案 + 关站**，
+- 备案通过后如果又把模式开回 `full`，被抽查到一样会被**注销备案 + 关站**，
   这不是「过审了就可以随便开」。
 - 真想把社区开起来，正确路径是**换成企业 / 个体工商户主体**重新备案（见对话里的
   B 方案），而不是偷偷改回去。
 - `full` 只在两种情况合规：服务器不在境内（不需要 ICP 备案），或者你确实拿到了
   允许做交互式服务的单位备案。
 
-### 想在 Nginx 上再挡一道（可选）
 
-`SITE_MODE=maintenance` 已经让接口全 503、前端渲染提示页。如果想连静态资源都不发出去
+### 想在 Nginx 上再挡一道（可选，**会把自己锁在门外**）
+
+现在的「备案中」已经让接口全 503、前端渲染提示页。如果想连静态资源都不发出去
 （更彻底，也省流量），在 `deploy/nginx-agen.conf` 的 `server` 块里临时加：
 
 ```nginx
-    # 备案期间整站关闭。**过审后记得删掉这三行**，否则一直是 503。
+    # 备案期间整站关闭。**过审后记得删掉**，否则一直是 503。
     #
     # ⚠️ 不要写成 server 级的 `return 503;`：`error_page` 的内部跳转会重新走一遍
     # server rewrite，又撞上那条 return，转十次之后变成 500。必须用 `location /`
@@ -361,9 +397,21 @@ su - agen -c "cd /srv/agen-website && sed -i 's/^SITE_MODE=.*/SITE_MODE=display/
         root /srv/agen-website/apps/web/dist;
         internal;
     }
+
+    # ⚠️ 必须留着：后台页面是静态文件，会被上面那条 `location /` 一起挡掉。
+    # 挡掉之后网页后台就进不去了，只能上服务器改 JSON 才能把站救回来。
+    # 精确匹配的优先级高于前缀匹配，所以这条不用调顺序。
+    location = /admin.html {
+        try_files $uri =404;
+    }
 ```
 
-`beian.html` 自己放一个静态提示页进 `apps/web/dist` 即可（前端那份 `maintenance` 页
-需要先加载 JS 才出来，Nginx 这层则是零 JS 的兜底）。两道门都留着更保险：反向代理的
-配置万一没同步，后端那道还在。
+- `/api/admin/*` 走的是已有的 `location /api/`（前缀更长，优先级高于 `location /`），
+  所以**不用**额外放行——后端那边本来也放行了 `/api/admin`。
+- `/assets/*` 也有独立的 location，同样不受影响。
+- 唯一会被误伤的就是 `/admin.html` 本身，所以上面那条必须加。
+- `beian.html` 自己放一个静态提示页进 `apps/web/dist` 即可（前端那份 `maintenance` 页
+  需要先加载 JS 才出来，Nginx 这层则是零 JS 的兜底）。两道门都留着更保险：反向代理的
+  配置万一没同步，后端那道还在。
+
 

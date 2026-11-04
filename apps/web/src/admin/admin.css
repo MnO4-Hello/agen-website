@@ -1643,13 +1643,28 @@ body {
   background: rgba(255, 255, 255, 0.85);
 }
 
-.wks__seg {
+/*
+ * 分段选择器。两处用同一套视觉：作品编辑器的「模板 / 开发者」，和设置页的
+ * 「完整站点 / 展示站 / 备案中」。规则合并写（`:is()` 之外用逗号），
+ * 颜色和圆角只维护一份——否则改一处、另一处就会慢慢漂走。
+ */
+.wks__seg,
+.stg__seg {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
 }
 
-.wks__segitem {
+.wks__seg {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* 三档：等宽分列，窄屏回落单列（见文件末尾的 @media）。 */
+.stg__seg {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wks__segitem,
+.stg__segitem {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
@@ -1664,22 +1679,30 @@ body {
   transition: border-color 0.18s var(--ease-out), background 0.18s var(--ease-out);
 }
 
-.wks__segitem:hover {
+.wks__segitem:hover,
+.stg__segitem:hover {
   border-color: var(--brand);
 }
 
-.wks__segitem.is-active {
+.wks__segitem.is-active,
+.stg__segitem.is-active {
   border-color: var(--brand);
   background: var(--pill);
 }
 
-.wks__segitem-label {
+.stg__segitem[data-danger='true']:hover {
+  border-color: var(--danger);
+}
+
+.wks__segitem-label,
+.stg__segitem-label {
   font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.04em;
 }
 
-.wks__segitem-note {
+.wks__segitem-note,
+.stg__segitem-note {
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.5;
@@ -2950,5 +2973,147 @@ body {
 @media (max-width: 900px) {
   .gbk__replies-count {
     margin-left: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   设置 · 站点形态（full / display / maintenance）
+--------------------------------------------------------------------------- */
+
+.stg {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 62rem;
+}
+
+.stg__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.stg__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.stg__bar-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.stg__src {
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--brand-strong);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.stg__meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.stg__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.stg__segitem-impact {
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.stg__segitem.is-active .stg__segitem-impact {
+  color: var(--brand-strong);
+  opacity: 1;
+}
+
+.stg__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stg__file {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+/* 损坏提示：左色条代替整块红底，和后台其它提示保持同一种克制。 */
+.stg__warn {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--danger);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--danger);
+}
+
+.stg__warn-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.stg__warn-note {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.stg__danger {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--danger);
+  border-radius: 12px;
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.stg__status {
+  min-height: 1.15rem;
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.stg__status.is-ok {
+  color: var(--brand-strong);
+}
+
+.stg__status.is-error {
+  color: var(--danger);
+}
+
+.stg__empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* 三列在窄屏会压成细条，直接竖排；卡片本身是整块可点的，竖排反而更好按。 */
+@media (max-width: 860px) {
+  .stg__seg {
+    grid-template-columns: 1fr;
   }
 }

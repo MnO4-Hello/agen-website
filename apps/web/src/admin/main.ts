@@ -100,7 +100,8 @@ async function maybePreview(): Promise<boolean> {
     requested !== 'content' &&
     requested !== 'guestbook' &&
     requested !== 'accounts' &&
-    requested !== 'badges'
+    requested !== 'badges' &&
+    requested !== 'settings'
   ) {
     return false;
   }
@@ -124,6 +125,7 @@ const DEEP_LINKS: readonly AdminViewId[] = [
   'guestbook',
   'accounts',
   'badges',
+  'settings',
 ];
 
 async function boot(): Promise<void> {

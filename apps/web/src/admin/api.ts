@@ -8,6 +8,8 @@
  * 只能让浏览器自己带上。同理，前端**不保存任何 token**——没有 localStorage 可偷。
  */
 
+import type { SiteFeature, SiteMode } from '../site/config';
+
 /** 请求都带上同源凭据，且不许缓存（这些响应里含「是否已登录」与实时数据）。 */
 const REQUEST_INIT: RequestInit = {
   credentials: 'same-origin',
@@ -933,5 +935,43 @@ export function revokeAdminBadge(
   return request<{ account: AdminAccount }>(
     `/accounts/${encodeURIComponent(userId)}/badges/${encodeURIComponent(badgeId)}`,
     { method: 'DELETE' },
+  );
+}
+
+/* ───────────────────────────── 站点形态 ───────────────────────────── */
+
+/**
+ * 当前配置是从哪儿来的。
+ *
+ * · `file`     —— 后台切过，以 `apps/api/data/site-mode.json` 为准；
+ * · `env`      —— 后台还没切过，用的是 `.env` 里的 `SITE_MODE`；
+ * · `fallback` —— 存储文件读不出来，已回退到 `display`（`corrupt` 为真）。
+ *
+ * 后台必须把它显示出来：否则「`.env` 写着 display、点按钮没反应」会被当成 bug。
+ */
+export type SiteModeSource = 'env' | 'file' | 'fallback';
+
+export interface SiteModeSnapshot {
+  mode: SiteMode;
+  features: Record<SiteFeature, boolean>;
+  source: SiteModeSource;
+  /** 环境变量里写的是什么。 */
+  envMode: SiteMode;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  corrupt: boolean;
+}
+
+export function fetchSiteMode(): Promise<ApiResult<{ site: SiteModeSnapshot }>> {
+  return request<{ site: SiteModeSnapshot }>('/settings/site-mode');
+}
+
+export function updateSiteMode(
+  mode: SiteMode,
+): Promise<ApiResult<{ site: SiteModeSnapshot; changed: boolean }>> {
+  return jsonRequest<{ site: SiteModeSnapshot; changed: boolean }>(
+    '/settings/site-mode',
+    { mode },
+    'PUT',
   );
 }

@@ -49,6 +49,10 @@ pm2 restart agen-api --update-env >/dev/null
 pm2 save >/dev/null
 
 echo "▶ 自检"
+# ⚠️ 探针只打 `/api/health` 与 `/api/site/config`——这两个在 `site/mode.ts` 的
+# `ALWAYS_OPEN` 里，任何站点模式下都放行，所以维护模式也不会误报。
+# 别为了「顺便看看页面」把探针改成走 Nginx 的 `/`：`maintenance` 下它返回 503，
+# 部署会看起来像失败，而实际是正常的关站状态。
 ok=0
 for _ in 1 2 3 4 5 6; do
   if curl -fsS -m 3 http://127.0.0.1:3000/api/health >/dev/null 2>&1; then

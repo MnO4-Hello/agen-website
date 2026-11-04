@@ -15,10 +15,30 @@
  *
  * ⚠️ **开关只认后端**。前端启动时问 `/api/site/config` 拿这一份，前端那份配置是**派生**的，
  * 不存在第二个真源——否则迟早出现「导航里有博客、后端却已经关了」的半开状态。
+ *
+ * 同一句话现在也适用于后端自己：运行期的真源是 `site/runtime.ts` 里的内存 holder
+ * （落盘 `apps/api/data/site-mode.json`），`SITE_MODE` 环境变量只在**还没有人从后台
+ * 切过**的时候决定初始形态。所以任何一个请求都必须问 `currentSiteConfig()`，
+ * 别在启动时把 `resolveSiteConfig()` 的结果存进闭包——那就又是第二份真源了。
  */
 
 /** 站点的运行模式。 */
 export type SiteMode = 'full' | 'display' | 'maintenance';
+
+/** 三个合法值。用来校验「存储文件里写的到底是不是一个模式」。 */
+export const SITE_MODES = ['full', 'display', 'maintenance'] as const;
+
+/**
+ * `value` 是不是一个合法的模式（**严格**：不做 trim、不做小写化、空串不算）。
+ *
+ * 与下面的 `parseSiteMode()` 刻意分开：
+ *   · `parseSiteMode()` 读环境变量，要容错（空 → full、拼错 → display）；
+ *   · 本函数读**存储文件**，容错就等于「把一个人的手误当成有效配置」——
+ *     文件里写错了应该判定为损坏，回退到最严格的一档，而不是猜他想写什么。
+ */
+export function isSiteMode(value: unknown): value is SiteMode {
+  return typeof value === 'string' && (SITE_MODES as readonly string[]).includes(value);
+}
 
 /**
  * 可以被模式关掉的功能。

@@ -1,8 +1,9 @@
 /**
  * 前端这一侧的站点模式（`full` / `display` / `maintenance`）。
  *
- * **开关的真源在后端**（`apps/api/src/site/mode.ts`，由环境变量 `SITE_MODE` 决定），
- * 这里只是启动时把它取回来的一份派生副本。类型是手抄的镜像而不是跨包 import：
+ * **开关的真源在后端**（运行期是 `apps/api/src/site/runtime.ts` 的内存 holder，
+ * 落盘 `apps/api/data/site-mode.json`；环境变量 `SITE_MODE` 只决定还没人从后台切过时的
+ * 初始形态），这里只是启动时把它取回来的一份派生副本。类型是手抄的镜像而不是跨包 import：
  * `apps/web` 不该把 `apps/api` 的源码拉进浏览器构建里（后端用 `node:` 前缀与
  * `.js` 后缀的 import，Vite 根本解析不了）。两边约定只有四个字段，抄一份比配一个
  * 共享包便宜得多。

@@ -21,6 +21,7 @@ import type {
   FileRoot,
   LogEntry,
   ServerStats,
+  SiteModeSnapshot,
 } from './api';
 import { createAccountsView } from './views/accounts';
 import { createBadgeCatalogView } from './views/badge-catalog';
@@ -29,8 +30,10 @@ import { createConsoleView, type ConsoleSource } from './views/console';
 import { createFilesView, type FilesSource } from './views/files';
 import { createGuestbookView, type GuestbookSource } from './views/guestbook';
 import { createPostsView } from './views/posts';
+import { createSettingsView } from './views/settings';
 import { createWorksView, type WorksSource } from './views/works';
 import type { PostsSource } from './views/post-source';
+import type { SiteModeSource } from './site-source';
 import type { AdminViewFactory, AdminViewId } from './views/shell';
 
 const startedAt = Date.now() - 3 * 60 * 60 * 1000;
@@ -857,9 +860,50 @@ const previewAccountSource: AccountSource = {
   },
 };
 
+const previewSiteMode: SiteModeSnapshot = {
+  mode: 'display',
+  features: { blog: false, message: false, account: false, profiles: false },
+  source: 'file',
+  envMode: 'display',
+  updatedAt: new Date(Date.now() - 26 * 60 * 1000).toISOString(),
+  updatedBy: '阿根',
+  corrupt: false,
+};
+
 export function createPreviewViews(
-  view: 'console' | 'files' | 'works' | 'content' | 'guestbook' | 'accounts' | 'badges',
+  view:
+    | 'console'
+    | 'files'
+    | 'works'
+    | 'content'
+    | 'guestbook'
+    | 'accounts'
+    | 'badges'
+    | 'settings',
 ): Partial<Record<AdminViewId, AdminViewFactory>> {
+  if (view === 'settings') {
+    /*
+     * `?preview=settings&state=corrupt`：看一眼「存储文件损坏」时的提示块。
+     * 假数据源不写盘——write 一律回 `changed: false`，截图通道不该有副作用。
+     */
+    const corrupt = new URLSearchParams(location.search).get('state') === 'corrupt';
+    const site: SiteModeSnapshot = corrupt
+      ? {
+          ...previewSiteMode,
+          mode: 'display',
+          source: 'fallback',
+          corrupt: true,
+          updatedAt: null,
+          updatedBy: null,
+        }
+      : previewSiteMode;
+    const source: SiteModeSource = {
+      read: async () => ({ ok: true, data: { site } }),
+      write: async () => ({ ok: true, data: { site, changed: false } }),
+    };
+    return { settings: () => createSettingsView(source) };
+  }
+
   if (view === 'console') return { console: () => createConsoleView(previewConsole) };
   if (view === 'accounts') {
     // `?preview=accounts&open=2`：自动展开第 2 行的面板，方便截图看操作区。

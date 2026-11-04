@@ -21,6 +21,7 @@ import { createConsoleView } from './console';
 import { createGuestbookView } from './guestbook';
 import { createFilesView } from './files';
 import { createPostsView } from './posts';
+import { createSettingsView } from './settings';
 import { createWorksView } from './works';
 import type { AdminView } from './view';
 
@@ -72,7 +73,12 @@ const NAV_ITEMS: readonly NavItem[] = [
   { id: 'accounts', label: '账户', description: '账号、处罚与权限', icon: 'shield', status: 'ready', minRole: 'admin' },
   // 徽章目录只有站长能改，所以这一项对管理员直接不出现。
   { id: 'badges', label: '徽章', description: '授予徽章的目录', icon: 'image', status: 'ready', minRole: 'owner' },
-  { id: 'settings', label: '设置', description: '站点与账号', icon: 'settings', status: 'soon', minRole: 'admin' },
+  /*
+   * 设置里目前只有「站点形态」一件事，但它是**唯一能改变站点对外形态的开关**：
+   * 切到 maintenance 整站 503。所以和作品 / 徽章同级，只给站长——后端
+   * `admin/guard.ts` 的 `OWNER_ONLY` 里有对应两条（读和写都不给管理员）。
+   */
+  { id: 'settings', label: '设置', description: '站点形态与开关', icon: 'settings', status: 'ready', minRole: 'owner' },
 ];
 
 const DEFAULT_VIEWS: Partial<Record<AdminViewId, AdminViewFactory>> = {
@@ -83,6 +89,7 @@ const DEFAULT_VIEWS: Partial<Record<AdminViewId, AdminViewFactory>> = {
   guestbook: createGuestbookView,
   accounts: () => createAccountsView(liveAccountSource),
   badges: () => createBadgeCatalogView(liveAccountSource),
+  settings: () => createSettingsView(),
 };
 
 export interface ShellOptions {

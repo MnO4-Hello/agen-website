@@ -55,6 +55,9 @@ const OPEN_ROUTES = new Set(['/api/admin/session', '/api/admin/login', '/api/adm
  * 这份表是权限的**第二道锁**：`admin-accounts.ts` 里的徽章接口自己也会断言 owner，
  * 但把「内容生产」集中列在这里，比在 6 个路由文件里各埋一行更好审计——
  * 想知道「管理员到底能不能发帖」，看这一个常量就够了。
+ *
+ * 站点形态开关也在这里：它是唯一能改变站点对外形态的写接口，改错一次等于整站关闭
+ * 或社区暴露，所以只给站长，连读都不给管理员。
  */
 const OWNER_ONLY = new Set([
   // 作品：从新建到排序，全部属于内容生产。
@@ -82,6 +85,9 @@ const OWNER_ONLY = new Set([
   'POST /api/admin/badges/:id/restore',
   'POST /api/admin/accounts/:id/badges',
   'DELETE /api/admin/accounts/:id/badges/:badgeId',
+  // 站点形态（full / display / maintenance）：读和写都只给站长。
+  'GET /api/admin/settings/site-mode',
+  'PUT /api/admin/settings/site-mode',
 ]);
 
 /**
@@ -170,7 +176,10 @@ export function installAdminGuard(app: FastifyInstance): void {
       noStore(reply);
       return reply.code(403).send({
         error: 'not_allowed',
-        message: '内容只由站长发布，管理员可以审核但不能发布。',
+        // 文案按分区给：同一句「内容只由站长发布」放在站点开关上是说不通的。
+        message: route.startsWith('/api/admin/settings/')
+          ? '站点形态开关只有站长可以操作。'
+          : '内容只由站长发布，管理员可以审核但不能发布。',
       });
     }
 
