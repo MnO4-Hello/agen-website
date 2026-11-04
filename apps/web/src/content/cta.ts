@@ -66,3 +66,15 @@ export const FOOTER_MARK_LABEL = '阿根';
 
 /** 页脚胶囊**静止态**的文案（它的功能就是回到页面顶部）。 */
 export const FOOTER_PILL_LABEL = '回到顶部';
+
+/**
+ * 页脚最底下那行 ICP 备案号。
+ *
+ * 站长 2026-11-04 收到工信部短信：「备案/许可证编号为：鄂ICP备2026064077号」。
+ * 个人站点备案要求把编号挂在页面底部，所以这一行不能删；但它是**法务信息不是设计元素**，
+ * 字号/字重都压到最小（见 styles.css 的 `.site-foot__icp`），别为了"好看"把它放大。
+ */
+export const FOOTER_ICP_LABEL = '鄂ICP备2026064077号';
+
+/** 备案查询入口（工信部统一入口，备案号必须链到这里）。 */
+export const FOOTER_ICP_HREF = 'https://beian.miit.gov.cn/';

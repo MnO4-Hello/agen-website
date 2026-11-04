@@ -114,6 +114,16 @@ export function createIdentitySection(options: IdentitySectionOptions): Identity
   const captionText = options.caption ?? PROFILE_CAPTION;
   const greetingText = options.greeting ?? '你好！';
 
+  /*
+   * 先把「给枫叶场景看」的全局状态清干净再建新实例。
+   *
+   * `update()` 在元素还没进文档时会直接早退（`rect.height === 0`），所以这里不能指望
+   * 首次 update 帮我们复位；而上一份实例如果是在钉住播放期间被销毁的，它留下的
+   * `data-identity-pinned="1"` 会让首页枫叶把字和板子当空气。详见 dispose() 里的注释。
+   */
+  delete document.body.dataset.identityPinned;
+  delete document.body.dataset.identityPhase;
+
   /** 减少动态偏好：不自动播放、不锁滚动，直接呈现最终状态。 */
   const reduced = prefersReducedMotion();
 
@@ -704,6 +714,15 @@ export function createIdentitySection(options: IdentitySectionOptions): Identity
         lockRoot.style.top = '';
         clearScrollLock();
       }
+      /*
+       * 枫叶场景读的是 `body[data-identity-pinned]`（见 `scene/leaf-field.ts` 的
+       * `gatherColliders()`）：这一屏钉住时写成 '1'，让颗粒别在开场动画里乱飞。
+       * **销毁时必须清掉**——否则换去别的页面再回首页时：新实例的 `update()` 因为元素
+       * 还没进文档会早退（`rect.height === 0`），而回首页的 `scrollTo(0)` 又恰好不产生
+       * scroll 事件，没人把旧值改回来 → 枫叶把字标和地板当空气，得手动滚一下才恢复。
+       */
+      delete document.body.dataset.identityPinned;
+      delete document.body.dataset.identityPhase;
       entrance.disconnect();
       visibility.disconnect();
       // 跳过按钮连着它的监听一起从文档里摘掉。

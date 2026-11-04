@@ -16,7 +16,6 @@ import {
   adminCookieHeader,
   noStore,
   readAdminConfig,
-  sameSecret,
   signToken,
   type AdminConfig,
 } from '../admin/session.js';
@@ -119,30 +118,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const credentials = readCredentials(request.body);
     if (!credentials) return reply.code(400).send({ error: 'invalid_body' });
 
-    // 两个条件都要算完再判断，别用 `||` 短路：短路会让「用户名就错了」比「密码错了」
-    // 少一次摘要计算，理论上能通过耗时区分两者。
-    const userOk = sameSecret(credentials.username, config.user);
-    const passwordOk = sameSecret(credentials.password, config.password);
-    if (userOk && passwordOk) {
-      clearAttempts(ip);
-      reply.header(
-        'set-cookie',
-        adminCookieHeader(signToken(config.user, config), config, Math.floor(config.ttlMs / 1000)),
-      );
-      return reply.send({ authenticated: true, user: config.user, role: 'owner', source: 'env' });
-    }
-
     /*
-     * 第二条路：`users.json` 里的管理员 / 站长账号。
+     * 唯一的登录路径：`users.json` 里的管理员 / 站长账号。
      *
-     * 这是「账号系统」与「隐藏后台」唯一的交点——站长在前面注册的账号，应该能直接
-     * 登进后台，而不必再去 `.env` 里手抄一份密码。普通用户一律进不来（role 不在白名单）。
+     * 2026-11-04 之前这里先比一对 `.env` 的 `ADMIN_USER` / `ADMIN_PASSWORD`，那是一个
+     * 在 `users.json` 里查不到、也删不掉的「隐形管理员」。站长要求后台只留自己的账号，
+     * 那套凭据连同这条分支一起删掉了——**别再恢复**，否则同一个站点又会多出一个
+     * 谁都不认识、封不掉的身份。
      *
      * 三道细节：
      *   · 账号不存在时也跑一次 scrypt（`DUMMY_HASH`），否则「没这个人」的响应明显更快；
      *   · 停用 / 角色不够都走同一个 401，不告诉对方「你账号存在但权限不够」；
-     *   · 签出来的 token 与原 `.env` 管理员**同构**，`requireAdmin` 一行都不用改。
-     *     代价是无状态 token 在有效期内无法撤销，所以这类会话的 TTL 压到最多 2 小时。
+     *   · 签出来的 token 是**无状态**的，有效期内撤不掉，所以这类会话的 TTL 压到最多 2 小时。
      */
     const account = await findByLogin(credentials.username);
     const canAdmin =
@@ -183,8 +170,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const config = readAdminConfig();
     // 没配置也要能登出（否则配错环境变量后 cookie 会留在浏览器里，越清不掉）。
     const fallback: AdminConfig = config ?? {
-      user: '',
-      password: '',
       secret: '',
       ttlMs: 0,
       secure: false,

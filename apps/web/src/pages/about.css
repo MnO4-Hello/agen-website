@@ -264,6 +264,115 @@
   text-underline-offset: 3px;
 }
 
+/* ---------- 赞助我：实心品牌色胶囊 + 二维码浮层 ---------- */
+
+/* 这是**第二档**胶囊，刻意不跟 `.about__pill` 统一：
+   浅底毛玻璃 = 「联系我」那排站内/站外链接；实心品牌色 = 赞助。
+   两者挨得很近，如果长得一样，读者会把收款码当成又一个社交链接点下去。
+   所以颜色直接借用两家的品牌色（支付宝 #1677ff / 微信压暗到 #07984f —— 官方绿
+   #07c160 上的白字只有 ~2.3:1，压暗才够读）。 */
+.sponsor {
+  position: relative;
+  display: flex;
+}
+
+.sponsor--alipay {
+  --sponsor-tone: #1677ff;
+  --sponsor-glow: rgba(22, 119, 255, 0.34);
+}
+
+.sponsor--wechat {
+  --sponsor-tone: #07984f;
+  --sponsor-glow: rgba(7, 152, 79, 0.34);
+}
+
+.sponsor__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* 左边留窄一点：圆形徽标自带内边距，左右等宽会显得左重。 */
+  padding: 0.55rem 1.25rem 0.55rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--sponsor-tone);
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  box-shadow: 0 6px 16px var(--sponsor-glow);
+  transition: transform 0.28s var(--ease-out), box-shadow 0.28s var(--ease-out),
+    filter 0.28s var(--ease-out);
+}
+
+.sponsor__pill:hover,
+.sponsor__pill:focus-visible,
+.sponsor:focus-within .sponsor__pill {
+  filter: brightness(1.06);
+  box-shadow: 0 10px 24px var(--sponsor-glow);
+  transform: translateY(-2px);
+}
+
+/* 徽标：白底 + 品牌色字形，就是两家 app 图标的写法（支付宝圆角方块、微信圆形），
+   零体积、不引第三方 SVG，也不会有官方 logo 的授权与走形问题。 */
+.sponsor__mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: var(--sponsor-tone);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.sponsor--wechat .sponsor__mark {
+  border-radius: 50%;
+}
+
+/* 二维码浮层：**往上**弹。
+   关于页是最后一屏，往下弹会被页面底边裁掉；往上则永远有空间（这里距顶还有好几屏）。 */
+.sponsor__qr {
+  position: absolute;
+  bottom: calc(100% + 0.6rem);
+  left: 50%;
+  z-index: 3;
+  display: block;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(31, 61, 43, 0.18), 0 2px 6px rgba(31, 61, 43, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  /* 用 translate 而不是 transform：胶囊 hover 的 `transform` 别被这里覆盖。 */
+  translate: -50% 6px;
+  transition: opacity 0.22s var(--ease-out), translate 0.22s var(--ease-out),
+    visibility 0.22s linear;
+  /* 不让它挡住指针，否则从胶囊移到浮层上会闪一下。 */
+  pointer-events: none;
+}
+
+/* 两种触发：鼠标悬停，以及键盘/触屏拿到焦点（按钮被点一下就会聚焦）。纯 CSS 状态。 */
+.sponsor:hover .sponsor__qr,
+.sponsor:focus-within .sponsor__qr {
+  opacity: 1;
+  visibility: visible;
+  translate: -50% 0;
+}
+
+/* 图片是 560 方图显示到 176：缩一半多，扫码足够清晰，又不会把整段撑得很大。 */
+.sponsor__qr-image {
+  display: block;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 0.6rem;
+}
+
 /* ---------- 断点 ---------- */
 
 /* 单列：头像不许铺满整行，否则头图会吃掉半屏、把标题挤到看不见。 */
@@ -283,6 +392,27 @@
 
   .about__title {
     font-size: clamp(2.2rem, 8vw, 3rem);
+  }
+}
+
+/* 窄屏（≤48rem）：浮层改成「从胶囊左边缘向右展开」。
+   居中会让卡片往左伸出「胶囊宽度与卡片宽度之差的一半」——桌面宽屏那片留白是空的，
+   看不出来；但视口一窄（480~700 这一段最明显）就会顶出屏幕左侧。改用左对齐之后，
+   左右两颗胶囊的卡片都落在「胶囊起点向右 12rem」以内，永远不会出界。 */
+@media (max-width: 48rem) {
+  .sponsor__qr {
+    left: 0;
+    translate: 0 6px;
+  }
+
+  .sponsor:hover .sponsor__qr,
+  .sponsor:focus-within .sponsor__qr {
+    translate: 0 0;
+  }
+
+  .sponsor__qr-image {
+    width: 9rem;
+    height: 9rem;
   }
 }
 
@@ -310,6 +440,16 @@
   .about__mail {
     font-size: 0.74rem;
   }
+
+  .sponsor__pill {
+    padding: 0.5rem 1rem 0.5rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .sponsor__qr-image {
+    width: 8rem;
+    height: 8rem;
+  }
 }
 
 /* ---------- 无障碍 ---------- */
@@ -328,4 +468,18 @@
   .about__pill:focus-visible {
     transform: none;
   }
+
+  /* 赞助胶囊与二维码浮层同理：状态照样切换，只是不做过渡。 */
+  .sponsor__pill,
+  .sponsor__qr {
+    transition: none;
+  }
+
+  .sponsor__pill:hover,
+  .sponsor__pill:focus-visible,
+  .sponsor:focus-within .sponsor__pill {
+    transform: none;
+  }
 }
+
+

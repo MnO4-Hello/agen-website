@@ -22,6 +22,8 @@ import {
   CTA_HEADLINE_BOTTOM,
   CTA_HEADLINE_TOP,
   CTA_SECTION_LABEL,
+  FOOTER_ICP_HREF,
+  FOOTER_ICP_LABEL,
   FOOTER_MARK_LABEL,
   FOOTER_PILL_LABEL,
 } from '../content/cta';
@@ -58,12 +60,13 @@ const isPageLocked = (): boolean =>
   LOCK_CLASSES.some((name) => document.body.classList.contains(name));
 
 /**
- * 页脚：一颗「回到顶部」胶囊。
+ * 页脚：一颗「回到顶部」胶囊 + 一行 ICP 备案号。
  *
  *   footer.site-foot
  *     a.site-foot__capsule[href="#home"]      ← 无障碍名字用「阿根」，因为那是它的品牌身份；
  *       span.site-foot__capsule-rest          ← 静止态文案：「回到顶部」（功能先讲清楚）
  *       span.site-foot__capsule-hover         ← 悬停态文案：「阿根」
+ *     a.site-foot__icp                       ← 鄂ICP备…号，链到工信部备案查询
  *
  * 两个 span 由 CSS 叠在同一格里交叉淡入淡出（见 styles.css 的页脚区块），**不写 JS 状态**——
  * 纯 `:hover` / `:focus-visible` 就能表达，键盘用户也拿得到同一份反馈。
@@ -94,8 +97,24 @@ const createFooter = (options: CtaSectionOptions): HTMLElement => {
   hover.className = 'site-foot__capsule-hover';
   hover.textContent = FOOTER_MARK_LABEL;
 
+  /*
+   * 备案号：法务信息，不是设计元素。
+   *
+   * 为什么不塞进胶囊里——胶囊是「回到顶部」这颗按钮，混进一段编号会同时毁掉两件事：
+   * 按钮读不懂、备案号看不见。单独一行 `.site-foot__icp`，字号压到 .72rem，
+   * 只有 hover / 键盘聚焦时才提亮并加下划线（见 styles.css）。
+   * 新窗口打开：这是外站入口，不能在站内把访客"送走"。
+   */
+  const icp = document.createElement('a');
+  icp.className = 'site-foot__icp';
+  icp.href = FOOTER_ICP_HREF;
+  icp.target = '_blank';
+  icp.rel = 'noreferrer noopener';
+  icp.textContent = FOOTER_ICP_LABEL;
+  icp.title = '工业和信息化部政务服务平台 · ICP 备案查询';
+
   capsule.append(rest, hover);
-  footer.append(capsule);
+  footer.append(capsule, icp);
   return footer;
 };
 

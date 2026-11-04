@@ -32,9 +32,9 @@ export async function loadLiveAuthors(): Promise<LiveAuthors> {
 /**
  * 「站长」这个身份在当前数据下的样子。
  *
- * 后台会话（`agen_admin` cookie）里只有 `{ sub: ADMIN_USER }`，**没有 UserRecord 的 id**，
+ * 后台会话（`agen_admin` cookie）只是一个无状态 token，**没有 UserRecord 的 id 可依**，
  * 所以站长回复的作者是 `kind: 'admin'`，昵称/头像取站内 owner 账号（没有就退回 admin，
- * 再退回「站长」）。靠用户名去 users.json 反查同名 owner 是猜测，换个环境变量就指向别人。
+ * 再退回「站长」）。靠用户名去 users.json 反查同名 owner 是猜测，换个会话就指向别人。
  */
 export async function ownerIdentity(): Promise<AuthorSnapshot> {
   const users = await listUsers();

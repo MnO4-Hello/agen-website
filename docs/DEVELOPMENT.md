@@ -225,8 +225,9 @@ npm run user:create -- \
 | POST | `/login`    | `{identifier, password}`，用户名或邮箱均可；8 次 / 10 分钟限流 |
 | POST | `/logout`   | 清 cookie                                       |
 
-`/admin.html` 的登录仍然认 `.env` 里的 `ADMIN_USER` / `ADMIN_PASSWORD`，**另外**也接受
-`users.json` 里 role 为 `admin` / `owner` 的账号（签发同一种管理 token，有效期压到 ≤2 小时）。
+`/admin.html` 的登录只认 `users.json` 里 role 为 `admin` / `owner` 的账号（有效期压到 ≤2 小时）。
+2026-11-04 之前还有一套 `.env` 的 `ADMIN_USER` / `ADMIN_PASSWORD`，那是个在 `users.json` 里
+查不到、也删不掉的「隐形管理员」，已按站长要求整体移除。
 
 管理会话是**回表校验**的：`/api/admin/*` 每次请求都由 `admin/guard.ts` 的守卫重新确认
 「这个人现在还是不是管理员」，所以停用 / 封禁 / 降级 / 删号**立即生效**，不必等 token 过期。
@@ -331,14 +332,13 @@ npm run dev                       # 前端 5173 + 后端 3000
 ```
 
 - **「藏起来」不是保护**，真正的门是账号密码，校验在后端
-  [routes/admin.ts](apps/api/src/routes/admin.ts)。
-- 凭据来自根目录 `.env`（复制 `.env.example` 再填）：
+  [routes/admin.ts](apps/api/src/routes/admin.ts)。**登录用的是站内账号**：先按
+  `npm run user:create -- --username <名> --role owner` 建站长号，再用它登后台。
+- 环境变量只剩会话密钥这一项（复制 `.env.example` 再填）：
 
   | 变量                     | 说明                                                     |
   | ------------------------ | -------------------------------------------------------- |
-  | `ADMIN_USER`             | 管理员账号                                                |
-  | `ADMIN_PASSWORD`         | 管理员密码（换成只有你知道的长口令）                       |
-  | `ADMIN_SESSION_SECRET`   | 会话签名密钥（HMAC-SHA256），换掉即让所有会话失效          |
+  | `ADMIN_SESSION_SECRET`   | 会话签名密钥（HMAC-SHA256），**必填**；换掉即让所有会话失效 |
   | `ADMIN_SESSION_TTL_MS`   | 可选，会话有效期，默认 8 小时                              |
   | `ADMIN_COOKIE_SECURE`    | 可选，HTTPS 部署时设 `1`（本地 http 调试**不能**开）        |
   | `ADMIN_FILE_ROOTS`       | 可选，文件管理能碰的目录白名单（格式 `名称=相对路径`，逗号分隔） |
@@ -414,8 +414,9 @@ npm run dev                       # 前端 5173 + 后端 3000
 | 改角色 `user` / `admin` / `owner` | 站长可全面；管理员改不到 `owner` | 只有站长能把人设为站长；且至少留一个站长 |
 | 授予 / 撤销徽章 | **只有站长** | 见下一节 |
 
-- 三级身份：`owner` 站长 > `admin` 管理员 > `user`。`.env` 的 `ADMIN_USER` 视为最高权站长，
-  **没有对应的 users.json 记录**，所以任何账号操作都碰不到它（这是兜底）。
+- 三级身份：`owner` 站长 > `admin` 管理员 > `user`。后台登录只有一条路——`users.json`
+  里 `role` 为 `owner` / `admin` 的账号（早期的 `.env` 管理员已移除，它没有 users.json
+  记录、任何账号操作都碰不到，属于「删不掉的隐形身份」）。
 - 管理员能进后台、管账号、审核帖子与留言；但**不能发博客、不能发布作品、不能改徽章、
   不能以站长身份回复留言**。硬限制在 [admin/guard.ts](apps/api/src/admin/guard.ts) 的
   `OWNER_ONLY` 路由表里，前端只是按 `role` 把按钮收起来（两层都要有）。

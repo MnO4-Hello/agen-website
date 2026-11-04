@@ -104,15 +104,14 @@ function routeTemplate(request: FastifyRequest): string {
 /**
  * 把 token 里的 `sub` 解析成一个「现在还有效」的操作者。
  *
- * `sub === ADMIN_USER` 视为 `.env` 管理员：永远 owner，且**没有** users.json 记录，
- * 所以任何账号操作（封禁、降级）都碰不到它——这是最后一道兜底。
+ * `sub` 是**站点账号的用户名**（登录时用 `account.username` 签名，见 `routes/admin.ts`）。
+ * 每次请求都回表：账号被删、被停用、被封禁、被降级，下一次请求立刻 401。
+ *
+ * 2026-11-04 起不再有「`.env` 管理员」这一支：那套 `ADMIN_USER` / `ADMIN_PASSWORD`
+ * 凭据在 users.json 里没有记录、也删不掉，站长要求把它整个移除。现在唯一的身份来源
+ * 就是 users.json 里的 `owner` / `admin` 账号。
  */
-async function resolveActor(sub: string, envUser: string): Promise<AdminActor | null> {
-  if (sub === envUser) {
-    return { name: sub, role: 'owner', userId: null, source: 'env' };
-  }
-
-  // 普通账号登录的后台会话：每次请求回表，所以停用/封禁/降级立即生效。
+async function resolveActor(sub: string): Promise<AdminActor | null> {
   const account = await findByLogin(sub);
   if (!account || !isActive(account)) return null;
   if (account.role !== 'owner' && account.role !== 'admin') return null;
@@ -131,7 +130,7 @@ export async function resolveCurrentActor(request: FastifyRequest): Promise<Admi
   if (!config) return null;
   const token = readCookie(request, ADMIN_COOKIE);
   const sub = token ? verifyToken(token, config.secret) : null;
-  return sub ? resolveActor(sub, config.user) : null;
+  return sub ? resolveActor(sub) : null;
 }
 
 /**
@@ -160,7 +159,7 @@ export function installAdminGuard(app: FastifyInstance): void {
 
     const token = readCookie(request, ADMIN_COOKIE);
     const sub = token ? verifyToken(token, config.secret) : null;
-    const actor = sub ? await resolveActor(sub, config.user) : null;
+    const actor = sub ? await resolveActor(sub) : null;
 
     if (!actor) {
       noStore(reply);

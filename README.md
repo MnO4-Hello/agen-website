@@ -88,7 +88,7 @@ npm run user:create -- --username yourname --nickname 昵称 --email you@example
 | 变量 | 作用 |
 | --- | --- |
 | `PORT` / `WEB_PORT` | 后端（默认 3000）/ 前端（默认 5173） |
-| `ADMIN_USER` / `ADMIN_PASSWORD` / `ADMIN_SESSION_SECRET` | 管理后台登录。**三项缺任何一项，`/api/admin/*` 整体返回 503**（fail-closed：忘配应该是打不开门） |
+| `ADMIN_SESSION_SECRET` | 后台会话签名密钥。**缺了它 `/api/admin/*` 整体返回 503**（fail-closed：忘配应该是打不开门）。后台登录只认站内 `owner` / `admin` 账号，不再有环境变量账号密码 |
 | `USER_SESSION_SECRET` | 访客会话签名密钥；不配会自动生成到 `apps/api/data/.session-secret` |
 | `ADMIN_FILE_ROOTS` | 文件管理能碰的目录白名单（`名称=相对路径`） |
 | `SITE_MODE` | `full`（默认）/ `display` / `maintenance`。**初始形态**：后台（`/admin.html` → 设置，站长专属）切换过之后以 `apps/api/data/site-mode.json` 为准，这一行不再生效。`display` 只留首页 / 作品 / 关于，博客、留言板、注册登录整体下线（前端不画入口，后端返回 404）。见 [docs/DEPLOY.md 附录 C](docs/DEPLOY.md) |

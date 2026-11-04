@@ -100,7 +100,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
       ok: false,
       status: 503,
       message:
-        '管理接口还没配置好：请在仓库根目录的 .env 里填上 ADMIN_USER、ADMIN_PASSWORD、ADMIN_SESSION_SECRET，然后重启后端。',
+        '管理接口还没配置好：请在仓库根目录的 .env 里填上 ADMIN_SESSION_SECRET，然后重启后端。',
     };
   }
   if (response.status === 413) {
@@ -154,7 +154,7 @@ export async function login(username: string, password: string): Promise<LoginRe
       ok: false,
       kind: 'not-configured',
       message:
-        '登录还没配置好：请在仓库根目录的 .env 里填上 ADMIN_USER、ADMIN_PASSWORD、ADMIN_SESSION_SECRET，然后重启后端。',
+        '登录还没配置好：请在仓库根目录的 .env 里填上 ADMIN_SESSION_SECRET，然后重启后端。',
     };
   }
   if (response.status === 400) {

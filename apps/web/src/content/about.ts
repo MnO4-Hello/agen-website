@@ -107,6 +107,56 @@ export const ABOUT_CONTACTS: readonly AboutContact[] = [
   },
 ];
 
-/* 这里原本还有一块「支持我」（微信 / 支付宝收款码）。2026-10-27 按站长的要求整块删掉：
-   个人网站备案期间页面上摆收款码容易被认定成经营性内容，风险不值得冒。
-   图也从 `public/images/` 删了，别再照旧稿加回来。 */
+/* ---------------------------------------------------------------------------
+   赞助我（支付宝 / 微信收款码）
+---------------------------------------------------------------------------
+
+   历史：2026-10-27 这块曾被整块删掉——个人网站**备案期间**页面上摆收款码容易被认定成
+   「经营性内容」，风险不值得冒，图也从 `public/images/` 删了。
+
+   现在（2026-11-04）备案已通过：备案/许可证编号 鄂ICP备2026064077号，所以按站长的要求
+   恢复。重申几条边界，改之前先读：
+
+     · 只作**打赏**，不承诺任何回报、不卖东西、不开会员——一旦沾上交易属性，个人主体的
+       备案就可能被判定不符（见 docs/DEPLOY.md 的「display 不是骗过审核」一节）；
+     · 二维码是**纯静态图片**（`public/images/sponsor-*.png`，从站长给的原图裁出、
+       只保留码本体 + 白边），页面不对接任何支付接口；
+     · 要撤掉只需删掉下面的 `ABOUT_SPONSORS` 与 `pages/about.ts` 里那一处 append，
+       不留别的耦合。
+
+   以后若抽查认定不符，第一个该动的就是这一块。 */
+
+export const ABOUT_SPONSOR_TITLE = '赞助我';
+
+/** 引用站长原话；句末加句号，和 `.about__section-note` 其它几句保持一致。 */
+export const ABOUT_SPONSOR_NOTE = '假如你喜欢我的话，可以请我喝一杯奶茶。';
+
+export interface AboutSponsor {
+  readonly id: 'alipay' | 'wechat';
+  /** 胶囊上看得见的文字。 */
+  readonly label: string;
+  /** 圆形徽标里的那一个字符（ASCII/常用符号，`system-ui` 必有字形）。 */
+  readonly glyph: string;
+  /** 收款码图片（`public/images/` 下，绝对路径，和 styles.css 里的 mask 用法一致）。 */
+  readonly qr: string;
+  /** 图片的替代文字 / `title`。 */
+  readonly hint: string;
+}
+
+/** 顺序即视觉顺序：蓝色支付宝 → 绿色微信。 */
+export const ABOUT_SPONSORS: readonly AboutSponsor[] = [
+  {
+    id: 'alipay',
+    label: '支付宝',
+    glyph: '支',
+    qr: '/images/sponsor-alipay.png',
+    hint: '支付宝收款码',
+  },
+  {
+    id: 'wechat',
+    label: '微信',
+    glyph: '✓',
+    qr: '/images/sponsor-wechat.png',
+    hint: '微信收款码',
+  },
+];

@@ -11,9 +11,9 @@
  * 前端**不重写**这套矩阵（它只负责 `disabled` + `title` 说明原因），否则两处
  * 迟早会不一致——而不一致的方向一定是「界面以为不能点、接口其实放行」。
  *
- * 身份来源有两种：`.env` 的 `ADMIN_USER`（`source: 'env'`，永远 owner，没有
- * 对应的 users.json 记录，所以**任何账号操作都碰不到它**）和 users.json 里的
- * `admin` / `owner` 账号（`source: 'account'`）。
+ * 身份来源只有一种：users.json 里的 `owner` / `admin` 账号（`source: 'account'`）。
+ * （2026-11-04 之前还有 `.env` 的 `ADMIN_USER`，它在 users.json 里没有记录、删不掉，
+ *  已按要求整体移除。`source: 'env'` 现在只剩 DEV 预览 mock 在用，真实登录不会产生。）
  */
 
 import type { Role, UserRecord } from '../users/types.js';
@@ -22,11 +22,12 @@ import { UserError } from '../users/validate.js';
 export type ActorRole = 'owner' | 'admin';
 
 export interface AdminActor {
-  /** 展示名 / 审计用（`.env` 管理员就是那个用户名）。 */
+  /** 展示名 / 审计用（账号的昵称，没有就退回用户名）。 */
   name: string;
   role: ActorRole;
-  /** 账号登录时是对应的 `UserRecord.id`；`.env` 管理员为 `null`。 */
+  /** 对应的 `UserRecord.id`。 */
   userId: string | null;
+  /** 真实登录恒为 `'account'`；`'env'` 只为 DEV 预览 mock 保留。 */
   source: 'env' | 'account';
 }
 

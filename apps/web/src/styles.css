@@ -4746,18 +4746,35 @@ html.lenis body {
   display: none;
 }
 
-/* —— 关键帧（逐帧照搬）—— */
+/* —— 关键帧 ——
+   ⚠️ 位移是 **±70%**，不是参考站那个对称的 52%。别按「看着对称/照抄参考站」改回去。
+
+   为什么：百分比相对**切片自身高度**，而切片高 = `.s__cta__text` 的 `height: .8em`。
+   两行各自被 `clip-path` 裁掉一半（见 `.s__cta__line--top/--bottom`），字必须**整块滑过
+   中缝**才算消失，所以位移必须大于墨迹在中缝一侧的伸出量。用 canvas 的
+   `actualBoundingBox*` 实测这一版字体（Windows / Archivo Narrow + 系统 CJK 回退）：
+
+     · 「根」墨迹 0.98em → 半个 0.49em；「阿」0.92em → 0.46em
+     · 「MnO4_」整串 1.04em → 0.52em（下划线把它拉到最低）
+     · 拉丁大写 M / O / 4 只有 0.76~0.79em
+
+   参考站的 52% → 0.416em：对拉丁大写够用（所以「MnO4_ 往上会消失」），对汉字和那条
+   下划线都不够 —— 于是滑到极限时中缝上还压着一条 ~0.02em 的边（`--size` 800px 时约 5px）。
+   70% → 0.56em 把两类都盖住（汉字余量 0.05em、下划线余量 0.04em）。
+
+   实测方式：把切片 `animation-delay` 设成负值 + `animation-play-state: paused` 就可以
+   把 CSS 动画冻在任意一帧（headless 截图也能拍到），别再靠肉眼在运行中的动画里找残影。 */
 @keyframes s-cta-char-up-down {
   0% {
     transform: translateZ(0);
     animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
   }
   25% {
-    transform: translate3d(0, -52%, 0);
+    transform: translate3d(0, -70%, 0);
     animation-timing-function: cubic-bezier(0.645, 0.045, 0.355, 1);
   }
   75% {
-    transform: translate3d(0, 52%, 0);
+    transform: translate3d(0, 70%, 0);
     animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
   }
   to {
@@ -4803,7 +4820,10 @@ html.lenis body {
   --site-foot-mark: #99ccad;
 
   display: flex;
-  flex-direction: row;
+  /* 竖排：上面那颗「回到顶部」胶囊，下面一行小号备案号。
+     两者都是 justify-content: center 的子项，胶囊的居中不会因为多了一行而偏。 */
+  flex-direction: column;
+  gap: 0.7rem;
   align-items: center;
   justify-content: center;
   position: relative;
@@ -4875,6 +4895,27 @@ html.lenis body {
 .site-foot__capsule:hover .site-foot__capsule-hover,
 .site-foot__capsule:focus-visible .site-foot__capsule-hover {
   opacity: 1;
+}
+
+/* —— 页脚那行 ICP 备案号 ——
+   法务信息，不是设计元素：字号压到 .72rem、字重正常、默认无下划线，安静地待在最底下。
+   但**不能靠透明度压暗**——底色是中绿 #3f7d58，`opacity: .5` 会把对比度打到 3:1 以下，
+   既不合规也真的看不清。取一个带绿的近白色（#e8f3e6）保持 ~4.3:1，靠字号和字重收住存在感。
+   hover / 键盘聚焦才提亮 + 下划线，说明它是可点的备案查询入口。 */
+.site-foot__icp {
+  color: #e8f3e6;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-decoration: none;
+  transition: color 0.25s ease;
+}
+
+.site-foot__icp:hover,
+.site-foot__icp:focus-visible {
+  color: #ffffff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------------------------------------------------------------------------

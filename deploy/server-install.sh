@@ -65,25 +65,19 @@ step "5/9 生成 .env"
 if [ -f "$APP_DIR/.env" ]; then
   ok ".env 已存在，保留原配置不覆盖"
 else
-  ADMIN_PASS=$(node -e "console.log(require('crypto').randomBytes(9).toString('base64url'))")
   ADMIN_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
   cat > "$APP_DIR/.env" <<EOF
 PORT=3000
 HOST=0.0.0.0
-ADMIN_USER=admin
-ADMIN_PASSWORD=$ADMIN_PASS
 ADMIN_SESSION_SECRET=$ADMIN_SECRET
 TRUST_PROXY=1
 EOF
   chmod 600 "$APP_DIR/.env"
   chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
-  {
-    echo "ADMIN_USER=admin"
-    echo "ADMIN_PASSWORD=$ADMIN_PASS"
-  } > /root/agen-credentials.txt
-  chmod 600 /root/agen-credentials.txt
-  ok "已生成 .env（管理员密码另存在 /root/agen-credentials.txt）"
+  # 后台**没有**环境变量账号密码：只认 users.json 里的 owner / admin 账号（见 docs/DEPLOY.md）。
+  ok "已生成 .env（只含会话密钥；后台登录请用站内站长账号）"
   warn "现在是 http 访问，所以 *_COOKIE_SECURE 故意都没写——写了会登录后掉线"
+  warn "别忘了先建站长账号：npm run user:create -- --username <名> --role owner"
 fi
 
 # ---------------------------------------------------------------- 6. 依赖
@@ -176,9 +170,11 @@ echo "  站点：     http://${IP:-<你的公网IP>}/"
 echo "  管理后台： http://${IP:-<你的公网IP>}/admin.html"
 echo
 if [ -f /root/agen-credentials.txt ]; then
-  cat /root/agen-credentials.txt
+  echo "  ⚠️ 发现旧的 /root/agen-credentials.txt（早期的 ADMIN_USER/ADMIN_PASSWORD），"
+  echo "     那对凭据已失效，可以删掉：rm -f /root/agen-credentials.txt"
   echo
 fi
+echo "  后台登录用站内站长账号（users.json 里的 owner），不再有环境变量账号密码。"
 echo "  打不开的话，第一件事是去阿里云控制台放行安全组的 80 端口。"
 echo "  看日志：pm2 logs agen-api --lines 50"
 printf '\033[1;32m==========================================\033[0m\n'

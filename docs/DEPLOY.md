@@ -105,8 +105,7 @@ SELinux / 防火墙」全串好了：
 bash /srv/agen-website/deploy/server-install.sh
 ```
 
-它会依次打印 1/9 到 9/9 的进度，最后输出站点地址和管理员账号密码
-（密码同时留在 `/root/agen-credentials.txt`）。
+它会依次打印 1/9 到 9/9 的进度，最后输出站点地址。
 
 跑完直接访问 `http://服务器IP/`。
 
@@ -136,11 +135,15 @@ su - agen -c "cd /srv/agen-website && npm run user:create -- \
 > 真要用这条命令，先 `su - agen -c "cd /srv/agen-website && npm i -D tsx"`，
 > 或者干脆在本地建好账号再把 `apps/api/data/users.json` 传上去。
 
-**② 管理员密码。** 脚本随机生成，存在 `/root/agen-credentials.txt`。想换成自己的：
+**② 后台登录用哪个号。** 只有站内账号能登后台（`role` 为 `owner` / `admin`），也就是上面
+① 建的那个号。脚本不再生成 `ADMIN_USER` / `ADMIN_PASSWORD`——那套环境变量身份在
+`users.json` 里查不到、也删不掉，2026-11-04 已按要求整体移除。`.env` 里现在只需要
+`ADMIN_SESSION_SECRET`；**换掉它 = 让所有后台会话立刻失效**：
 
 ```bash
-nano /srv/agen-website/.env      # 改 ADMIN_PASSWORD
-su - agen -c "pm2 restart agen-api"
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"   # 生成新密钥
+nano /srv/agen-website/.env      # 改 ADMIN_SESSION_SECRET
+su - agen -c "pm2 restart agen-api --update-env"
 ```
 
 ---
@@ -429,8 +432,8 @@ su - agen -c "cd /srv/agen-website && \
 rm -f /srv/agen-website/apps/api/data/site-mode.json
 su - agen -c "cd /srv/agen-website && pm2 restart agen-api"
 
-# ③ 后台登录 503：说明 .env 里的 ADMIN_USER / ADMIN_PASSWORD / ADMIN_SESSION_SECRET 没配全
-grep -c '^ADMIN_' /srv/agen-website/.env     # 应该是 3
+# ③ 后台登录 503：说明 .env 里的 ADMIN_SESSION_SECRET 没配
+grep -c '^ADMIN_SESSION_SECRET=' /srv/agen-website/.env     # 应该是 1
 ```
 
 改完之后用 `curl -s http://127.0.0.1:3000/api/site/config` 确认。

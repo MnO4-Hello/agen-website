@@ -37,9 +37,9 @@ export async function loadLiveAuthors(): Promise<LiveAuthors> {
 /**
  * 帖子的作者署名。
  *
- * 管理员会话（`agen_admin` cookie）里只有 `{ sub: ADMIN_USER }`，**没有 UserRecord 的
- * id**——所以帖子作者是 `kind: 'admin'`，昵称/头像取站内 owner 账号（没有就退回 admin，
- * 再退回「站长」）。靠用户名去 users.json 反查同名的 owner 是猜测，换个环境变量就指向
+ * 后台会话（`agen_admin` cookie）只是一个无状态 token，**没有 UserRecord 的 id 可依**——
+ * 所以帖子作者是 `kind: 'admin'`，昵称/头像取站内 owner 账号（没有就退回 admin，
+ * 再退回「站长」）。靠用户名去 users.json 反查同名的 owner 是猜测，换个会话就指向
  * 别人了，不干这种事。
  */
 export async function ownerIdentity(): Promise<AuthorSnapshot> {

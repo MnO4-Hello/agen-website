@@ -23,11 +23,12 @@ const host = process.env.HOST ?? '0.0.0.0';
 
 const app = await buildApp();
 
-// 管理员凭据有没有配全，启动时就在日志里说清楚——否则要到打开登录页才 503，很难查。
-if (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) {
+// 后台会话的签名密钥有没有配，启动时就在日志里说清楚——否则要到打开登录页才 503，很难查。
+// 账号密码不再走环境变量：登录只认 users.json 里的 owner / admin 账号（见 routes/admin.ts）。
+if (!process.env.ADMIN_SESSION_SECRET) {
   app.log.warn(
-    'ADMIN_USER / ADMIN_PASSWORD / ADMIN_SESSION_SECRET 未配全，/api/admin/* 会返回 503；' +
-      '要启用请复制 .env.example 为 .env 并填好这三项。',
+    'ADMIN_SESSION_SECRET 未配置，/api/admin/* 会返回 503；' +
+      '要启用请复制 .env.example 为 .env 并填好 ADMIN_SESSION_SECRET（后台登录用站内站长账号）。',
   );
 }
 

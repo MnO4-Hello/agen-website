@@ -6,9 +6,14 @@
  *
  * 设计取舍（每条都有代价，别轻易改）：
  *
- *   1. **凭据只从环境变量读**（`ADMIN_USER` / `ADMIN_PASSWORD` / `ADMIN_SESSION_SECRET`）：
- *      仓库里不留任何可登录的默认值。三个变量缺任何一个就整体 503（fail-closed）——
- *      「忘了配」必须是打不开门，而不是谁都能进。
+ *   1. **登录凭据只认站内账号**（`users.json` 里 `role` 为 `owner` / `admin` 的那批，
+ *      见 `routes/admin.ts`）；环境变量只提供**会话签名密钥** `ADMIN_SESSION_SECRET`，
+ *      缺了它整体 503（fail-closed）——「忘了配」必须是打不开门，而不是谁都能进。
+ *
+ *      2026-11-04 之前这里还有一套 `ADMIN_USER` / `ADMIN_PASSWORD`：它在 `users.json`
+ *      里没有记录，却能被当成 owner 登进后台（`userId: null`）。站长要求后台只留
+ *      自己的账号，那套凭据已整体移除——**别再把它加回来**，否则站点又会出现
+ *      「一个查不到、也删不掉的隐形管理员」。
  *   2. **会话是无状态 HMAC token，放在 HttpOnly cookie 里**：token 不进 JS 作用域，
  *      XSS 偷不走；服务端不用存 session 表。token 里只有 `{ sub, exp }`，没有密码。
  *      代价：登出只能删客户端 cookie，已签发的 token 在过期前理论上仍有效（本机自用足够）。
@@ -29,24 +34,22 @@ export const ADMIN_COOKIE = 'agen_admin';
 const DEFAULT_TTL_MS = 8 * 60 * 60 * 1000;
 
 export interface AdminConfig {
-  user: string;
-  password: string;
   secret: string;
   ttlMs: number;
   secure: boolean;
 }
 
-/** 每次请求现读环境变量：测试可以随时改，且不必在模块加载期就要求变量存在。 */
+/**
+ * 读会话配置。**只有 `ADMIN_SESSION_SECRET` 是必需的**——账号密码那一套已经删掉了，
+ * 登录走 `users.json` 里的站点账号（见 `routes/admin.ts`）。
+ * 每次请求现读环境变量：测试可以随时改，且不必在模块加载期就要求变量存在。
+ */
 export function readAdminConfig(): AdminConfig | null {
-  const user = process.env.ADMIN_USER?.trim();
-  const password = process.env.ADMIN_PASSWORD;
   const secret = process.env.ADMIN_SESSION_SECRET?.trim();
-  if (!user || !password || !secret) return null;
+  if (!secret) return null;
 
   const ttlMs = Number(process.env.ADMIN_SESSION_TTL_MS);
   return {
-    user,
-    password,
     secret,
     ttlMs: Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : DEFAULT_TTL_MS,
     secure: process.env.ADMIN_COOKIE_SECURE === '1',

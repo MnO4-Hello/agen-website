@@ -248,6 +248,9 @@ class LeafField {
     ): void => {
       if (right - left <= 0 || bottom - top <= 0) return;
       // 开场动画会把整个板块钉住很久，这段时间不让颗粒进来捣乱。
+      // ⚠️ 这个标志**只由 `sections/identity.ts` 写**（update() 写、dispose() 清）。
+      //    它描述的是「identity 那一屏还钉在视口里」，所以 identity 被销毁时一定要删掉；
+      //    否则换页回首页后枫叶会一直跳过所有碰撞面（曾经的真实 bug）。
       if (document.body.dataset.identityPinned === '1') return;
       const before = this.previousRects.get(key);
       seen.set(key, { left, top, right, bottom });
