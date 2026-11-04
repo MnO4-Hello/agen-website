@@ -74,10 +74,25 @@ interface StoredState {
   updatedBy: string;
 }
 
-/** 环境变量里写的模式。启动读一次即可（进程内不会变）。 */
-const envMode: SiteMode = parseSiteMode(process.env.SITE_MODE);
+/**
+ * 环境变量里写的模式。**用函数读，不要在模块顶层算成常量。**
+ *
+ * ESM 的静态 `import` 先于模块体的任何语句执行，而 `server.ts` 里的
+ * `process.loadEnvFile()` 是「语句」——也就是说本模块求值时 `.env` 还没被加载，
+ * 顶层拿到的是 `undefined`，`parseSiteMode('')` 会给出 `full`。
+ * 线上就因此出现过「`.env` 明明写着 display、接口却是 full」：shell 里传的
+ * `SITE_MODE=display npm run dev` 能正常工作，只有读 `.env` 的部署会错位。
+ */
+function envModeValue(): SiteMode {
+  return parseSiteMode(process.env.SITE_MODE);
+}
 
-let config: SiteConfig = resolveSiteConfig(envMode);
+/**
+ * 初始值只有 fail-closed 的 `display`，真正的判定在 `initSiteMode()` 里。
+ * 保留一个「最严格」的初值，是为了万一有人在 `initSiteMode()` 之前读了
+ * `currentSiteConfig()`，拿到的也是关着的状态，而不是全开。
+ */
+let config: SiteConfig = resolveSiteConfig('display');
 let source: SiteModeSource = 'env';
 let stored: StoredState | null = null;
 let corrupt = false;
@@ -166,6 +181,8 @@ export async function initSiteMode(): Promise<InitResult> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       // 正常态：后台还没切过，用环境变量。**不写文件**，否则 .env 从此失效。
+      config = resolveSiteConfig(envModeValue());
+      source = 'env';
       return { snapshot: siteModeSnapshot(), error: null };
     }
     corrupt = true;
@@ -201,7 +218,7 @@ export function siteModeSnapshot(): SiteModeSnapshot {
     mode: config.mode,
     features: config.features,
     source,
-    envMode,
+    envMode: envModeValue(),
     updatedAt: stored?.updatedAt || null,
     updatedBy: stored?.updatedBy || null,
     corrupt,
