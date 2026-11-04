@@ -6042,6 +6042,9 @@ html.lenis body {
 
 /* 封面横幅：与列表卡的缩略图是同一张图，进来之后有个视觉延续。 */
 .wdetail__cover {
+  /* 现在是一条 `<a>`（点进原图页）。它虽然是 flex 子项（会被块级化），
+     但显式写一行 `display` 更稳：万一以后换了容器，也不会退回成行内元素。 */
+  display: block;
   margin: 0;
   overflow: hidden;
   aspect-ratio: 21 / 9;

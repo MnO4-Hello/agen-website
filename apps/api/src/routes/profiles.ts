@@ -22,7 +22,7 @@ import { attachGrantedBadges } from '../users/granted-badges.js';
 import {
   accountMediaMime,
   accountMediaPaths,
-  isAccountMediaName,
+  isServedAccountMediaName,
 } from '../users/profile-media.js';
 import { isActive } from '../users/moderation.js';
 import { systemBadgesOf } from '../users/profile-types.js';
@@ -83,7 +83,7 @@ export async function profileRoutes(app: FastifyInstance): Promise<void> {
     const name = (request.params as { file?: string }).file ?? '';
 
     // ① 只认服务端生成的命名：同时挡掉 `..`、反斜杠、%2f 解码后的斜杠。
-    if (!isAccountMediaName(name)) return reply.code(404).send({ error: 'not_found' });
+    if (!isServedAccountMediaName(name)) return reply.code(404).send({ error: 'not_found' });
 
     // ② realpath 复核：万一有人往媒体目录里塞了软链接，也出不去。
     const root = await accountMediaPaths.realDir();

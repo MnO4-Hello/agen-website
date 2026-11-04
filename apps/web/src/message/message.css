@@ -742,53 +742,6 @@
   text-align: center;
 }
 
-/* ---------- 大图 ---------- */
-
-.mb-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: grid;
-  place-items: center;
-  padding: 2.5rem 1.5rem;
-  background: rgba(16, 30, 22, 0.82);
-  opacity: 0;
-  transition: opacity 0.22s var(--ease-out);
-}
-
-.mb-lightbox.is-open {
-  opacity: 1;
-}
-
-.mb-lightbox__image {
-  max-width: min(92vw, 68rem);
-  max-height: 86vh;
-  border-radius: 12px;
-  object-fit: contain;
-}
-
-.mb-lightbox__close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  width: 2.4rem;
-  height: 2.4rem;
-  display: grid;
-  place-items: center;
-  border: 1px solid rgba(246, 250, 243, 0.4);
-  border-radius: 50%;
-  background: rgba(16, 30, 22, 0.5);
-  color: #f6faf3;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.mb-lightbox__close:hover,
-.mb-lightbox__close:focus-visible {
-  background: rgba(16, 30, 22, 0.8);
-}
-
 /* ---------- 窄屏 ---------- */
 
 @media (max-width: 720px) {
@@ -818,7 +771,6 @@
   .mb-compose,
   .mb-card,
   .mb-shot,
-  .mb-lightbox,
   .mb-verify__fill {
     transition: none;
   }

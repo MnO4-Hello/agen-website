@@ -11,6 +11,7 @@
  */
 
 import type { RouteView } from '../router';
+import { createMediaImage } from '../shared/media';
 import { fetchWorks, workHref, type WorkSummary } from '../works/api';
 import { coverHue } from '../works/present';
 
@@ -120,12 +121,12 @@ export function createWorksPage(): RouteView {
     const cover = document.createElement('div');
     cover.className = 'wk-card__cover';
     if (work.thumbnail) {
-      const img = document.createElement('img');
-      img.src = work.thumbnail;
-      img.alt = '';
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      cover.append(img);
+      /*
+       * 只换压缩图，**不包原图链接**：整张卡已经是 `<a class="wk-card">`，
+       * 里面再嵌一个 `<a>` 会被浏览器的解析器拆开、把点击区域撕碎。
+       * 「点图看原图」由详情页的横幅与图集承担。
+       */
+      cover.append(createMediaImage({ src: work.thumbnail, tier: 'thumb' }));
     } else {
       // 没有封面的作品照样要有辨识度：色相由 slug 决定，改标题不会让颜色乱跳。
       cover.classList.add('is-placeholder');

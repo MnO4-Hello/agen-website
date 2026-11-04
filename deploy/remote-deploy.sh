@@ -44,6 +44,18 @@ fi
 echo "▶ 构建（web + api）"
 npm run build
 
+# sharp 带预编译的 libvips（@img/sharp-linux-x64），正常情况下 npm ci 就装好了。
+# 但它一旦装不上，`import sharp` 会在顶层直接抛错、进程起不来——**这时候绝不能重启**：
+# 旧进程还在正常服务，重启只会把整站打成 502。所以先探一次。
+echo "▶ 检查 sharp 原生模块"
+node -e "import('sharp').then((m)=>{console.log('  ✓ sharp', m.default.versions.sharp, '/ libvips', m.default.versions.vips)}).catch((e)=>{console.error('  ✗ sharp 不可用：', e.message); process.exit(1)})" \
+  || {
+    echo "✗ sharp 装不上，已中止部署（旧进程未受影响）。"
+    echo "  排查：删掉 .deploy/lock-hash 后重跑 npm ci；registry 不通可切 npmmirror。"
+    echo "  ⚠️ 不要用 --build-from-source：这台机器没有 gcc。"
+    exit 1
+  }
+
 echo "▶ 重启 agen-api"
 pm2 restart agen-api --update-env >/dev/null
 pm2 save >/dev/null

@@ -5,6 +5,7 @@ import './account/account.css';
 import './blog/blog.css';
 import './message/message.css';
 import './pages/about.css';
+import './pages/photo.css';
 import { isNavRoute, routesForSite, type AppRoute } from './app-routes';
 import { getAuthState, hydrate, logout, markGuest, rememberReturnTo, startAuthSync, subscribe } from './auth/session';
 import { createNavbar, navItemsForSite } from './components/navbar';
@@ -16,6 +17,7 @@ import { createBlogPostPage } from './pages/blog-post';
 import { createHomePageView } from './pages/home-view';
 import { createMaintenancePage } from './pages/maintenance';
 import { createMessagePage } from './pages/message';
+import { createPhotoPage } from './pages/photo';
 import { createPublicProfilePage } from './pages/public-profile';
 import { createWorkDetailPage } from './pages/work-detail';
 import { createWorksPage } from './pages/works';
@@ -158,6 +160,9 @@ function mountSite(site: SiteConfig, shotMode: boolean): void {
          * 用户名的大小写、非法字符都交给服务端判定：前端先猜一遍只会多出第二套规则。
          */
         return createPublicProfilePage({ username: param ?? '', navigate: router.navigate });
+      case 'photo':
+        // 原图查看页，`param` 是原图文件名（`#photo/w-0a3a94442b2ed304.png`）。
+        return createPhotoPage({ name: param ?? '' });
     }
   };
 

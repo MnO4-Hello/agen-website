@@ -15,7 +15,7 @@
 import { createBlogAvatar } from '../blog/avatar';
 import { formatDateTime, formatRelative } from '../blog/present';
 import { MESSAGE_COPY } from '../content/message';
-import { openLightbox } from './lightbox';
+import { createMediaImage, enhanceMediaImages, photoLink } from '../shared/media';
 import { renderMessageMarkdown } from './markdown';
 import type { MessageAuthor, MessageView } from './types';
 
@@ -66,22 +66,17 @@ function authorLine(author: MessageAuthor, iso: string, size: 'md' | 'sm'): HTML
   return line;
 }
 
-/** 图片网格。点击开大图（`lightbox.ts`）。 */
+/** 图片网格。点击进站内原图页（原来的灯箱已删除，见 `pages/message.ts` 顶部注释）。 */
 function imageGrid(urls: string[]): HTMLElement | null {
   if (urls.length === 0) return null;
   const grid = el('div', 'mb-shots');
   for (const url of urls) {
-    const button = el('button', 'mb-shot');
-    button.type = 'button';
-    button.setAttribute('aria-label', '查看大图');
-    const img = el('img', 'mb-shot__img');
-    img.src = url;
-    img.alt = '';
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    button.append(img);
-    button.addEventListener('click', () => openLightbox(url));
-    grid.append(button);
+    // 格子 7rem 见方，`thumb` 那档（512）够用。`.mb-shot` 自带 `cursor: zoom-in`
+    // 与 `display: block`，对 `<a>` 一样生效，不用改样式。
+    const img = createMediaImage({ src: url, tier: 'thumb', className: 'mb-shot__img' });
+    const shot = photoLink(url, img, 'mb-shot');
+    shot.setAttribute('aria-label', '查看原图');
+    grid.append(shot);
   }
   return grid;
 }
@@ -91,6 +86,8 @@ function bodyNode(message: MessageView, className: string): HTMLElement {
   if (message.mode === 'markdown') {
     const box = el('div', `${className} md-body`);
     box.append(renderMessageMarkdown(message.body));
+    // 正文里的站内插图同样走压缩版 + 原图页（高度可能比网格里那张大得多）。
+    enhanceMediaImages(box, 'content');
     return box;
   }
   return el('div', className, message.body);

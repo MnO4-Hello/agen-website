@@ -15,6 +15,7 @@
  */
 
 import { renderMarkdown } from '../shared/markdown';
+import { createMediaImage, photoLink } from '../shared/media';
 import type { RouteView } from '../router';
 import { fetchWork, type WorkDetail } from '../works/api';
 import { formatMonth } from '../works/present';
@@ -186,14 +187,14 @@ export function createWorkDetailPage(options: WorkDetailPageOptions): RouteView 
      */
     let cover: HTMLElement | null = null;
     if (work.thumbnail) {
-      const figure = document.createElement('figure');
-      figure.className = 'wdetail__cover';
-      const img = document.createElement('img');
-      img.src = work.thumbnail;
-      img.alt = '';
-      img.decoding = 'async';
-      figure.append(img);
-      cover = figure;
+      /*
+       * 直接把 `.wdetail__cover` 挂在 `<a>` 上（原来是 `<figure>`）。
+       * `styles.css` 里那条规则是按 class 命中的（`aspect-ratio: 21/9` + `object-fit: cover`），
+       * 换成 `<a>` 后版式不变；它同时是 `.wdetail__stage` 这个 flex 容器的子项，会被块级化。
+       * 点进去是原图页——横幅宽 68rem，用 `content` 那档（长边 1920）。
+       */
+      const img = createMediaImage({ src: work.thumbnail, tier: 'content' });
+      cover = photoLink(work.thumbnail, img, 'wdetail__cover');
     }
 
     const main = document.createElement('article');
@@ -222,18 +223,13 @@ export function createWorkDetailPage(options: WorkDetailPageOptions): RouteView 
       const shots = document.createElement('div');
       shots.className = 'wdetail__shots';
       for (const src of work.gallery) {
-        const link = document.createElement('a');
-        link.className = 'wdetail__shot';
-        link.href = src;
-        link.target = '_blank';
-        link.rel = 'noreferrer noopener';
-        const img = document.createElement('img');
-        img.src = src;
-        img.alt = '';
-        img.loading = 'lazy';
-        img.decoding = 'async';
-        link.append(img);
-        shots.append(link);
+        /*
+         * 格子只有 14rem（约 224px）见方，用 `thumb` 那档就够——拿 1920 的 `-c`
+         * 塞进这么小的格子里是纯浪费，而这站的瓶颈正是下行带宽。
+         * 原来这里是 `target="_blank"` 开新标签页，现在统一进站内原图页（带返回记录）。
+         */
+        const img = createMediaImage({ src, tier: 'thumb' });
+        shots.append(photoLink(src, img, 'wdetail__shot'));
       }
       gallery.append(shots);
       main.append(gallery);

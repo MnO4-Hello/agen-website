@@ -21,7 +21,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 
 import {
   findPublished,
-  isMediaName,
+  isServedMediaName,
   listPublished,
   mediaMime,
   mediaPaths,
@@ -80,7 +80,8 @@ export async function workRoutes(app: FastifyInstance): Promise<void> {
     const name = (request.params as { file?: string }).file ?? '';
 
     // ① 只认服务端生成的命名：这一步同时挡掉了 `..`、反斜杠、`%2f` 解码后的斜杠。
-    if (!isMediaName(name)) {
+    //    `isServedMediaName` 比入库那条宽一档，额外允许 `-t.webp` / `-c.webp`。
+    if (!isServedMediaName(name)) {
       return reply.code(404).send({ error: 'not_found' });
     }
 

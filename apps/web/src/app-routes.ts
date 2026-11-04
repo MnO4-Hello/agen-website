@@ -18,10 +18,10 @@
 import { NAV_ROUTES, type NavItemId } from './components/navbar';
 import type { SiteConfig } from './site/config';
 
-export type AppRoute = NavItemId | 'login' | 'account' | 'u';
+export type AppRoute = NavItemId | 'login' | 'account' | 'u' | 'photo';
 
 /** 不在导航栏里的路由（新增一个不在导航里的页面，只改这一行）。 */
-const EXTRA_ROUTES = ['login', 'account', 'u'] as const satisfies readonly AppRoute[];
+const EXTRA_ROUTES = ['login', 'account', 'u', 'photo'] as const satisfies readonly AppRoute[];
 
 /** 传给 `createRouter()` 的完整路由表。 */
 export const APP_ROUTES: readonly AppRoute[] = [...NAV_ROUTES, ...EXTRA_ROUTES];
@@ -52,6 +52,13 @@ export function isRouteEnabled(route: AppRoute, config: SiteConfig): boolean {
       return config.features.account;
     case 'u':
       return config.features.profiles;
+    case 'photo':
+      /*
+       * 原图页恒开。它是「压缩图 → 原图」这条链路的另一半：只要还有任何一张图
+       * 能被点开，这一页就必须能打开。跟着某个内容模块一起关掉的话，点图会落到
+       * 首页，用户会以为图坏了。
+       */
+      return true;
     case 'home':
     case 'works':
     case 'about':

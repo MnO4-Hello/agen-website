@@ -8,6 +8,8 @@
  * 色板刻意只有六档、且都在品牌绿附近，避免导航栏右上角出现一个跳脱的色块。
  */
 
+import { createMediaImage } from '../shared/media';
+
 export type AvatarSize = 'sm' | 'lg';
 
 export interface AvatarOptions {
@@ -47,14 +49,23 @@ export function createAvatar(options: AvatarOptions): HTMLElement {
 
   const url = options.avatarUrl?.trim();
   if (url) {
-    const image = document.createElement('img');
-    image.className = 'avatar__image';
-    image.src = url;
-    image.alt = '';
-    // 图挂了就退回首字，别在导航栏上留一个破图标。
-    image.addEventListener('error', () => {
-      image.remove();
-      paintInitial(root, options.nickname);
+    /*
+     * 头像显示尺寸只有 32–52px，所以走 `thumb` 那档（长边 512）——原来直接吃原图，
+     * 一张 281KB 的截图被塞进导航栏，是首屏最不值当的那几百 KB。
+     *
+     * ⚠️ 这里**不能再自己挂 `error` 监听**：`createMediaImage` 内部先回退到原图，
+     * 两档都失败才回调。两套监听同时存在的话，派生图一 404 就会把 `<img>` 直接摘掉，
+     * 用户看到的是首字而不是原图。
+     */
+    const image = createMediaImage({
+      src: url,
+      tier: 'thumb',
+      className: 'avatar__image',
+      loading: 'eager',
+      onFallbackFailed: () => {
+        image.remove();
+        paintInitial(root, options.nickname);
+      },
     });
     root.append(image);
     return root;

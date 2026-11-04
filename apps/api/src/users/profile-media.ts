@@ -16,11 +16,20 @@ import { fileURLToPath } from 'node:url';
 
 import { ACCOUNT_MEDIA_PREFIX, ACCOUNT_MEDIA_RE } from './profile-types.js';
 import { hashedMediaName, MEDIA_HINT, mimeOfMediaName, sniffImage } from '../media/sniff-image.js';
+import { ensureDerivatives } from '../media/derivatives.js';
 import { UserError } from './validate.js';
 
 const API_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const DATA_DIR = path.join(API_ROOT, 'data');
 const MEDIA_DIR = path.join(DATA_DIR, 'account-media');
+
+/**
+ * **下发**用的白名单：原图 + 两档派生图。
+ *
+ * `ACCOUNT_MEDIA_RE`（`profile-types.ts`）是入库契约，只认原图——`accountMediaNameFromUrl()`
+ * 也靠它，把派生图算进去会让「清空头像时判断是否还有别人引用」出错。
+ */
+const SERVED_ACCOUNT_MEDIA_RE = /^a-[a-f0-9]{16}(?:\.(?:png|jpg|webp|gif|avif)|-[tc]\.webp)$/;
 
 export const accountMediaPaths = {
   dir: MEDIA_DIR,
@@ -36,6 +45,11 @@ export const accountMediaPaths = {
 
 export function isAccountMediaName(value: string): boolean {
   return ACCOUNT_MEDIA_RE.test(value);
+}
+
+/** 能不能作为图片被下发（原图或派生图）。 */
+export function isServedAccountMediaName(value: string): boolean {
+  return SERVED_ACCOUNT_MEDIA_RE.test(value);
 }
 
 export function accountMediaMime(name: string): string {
@@ -97,6 +111,9 @@ export async function saveAccountMedia(buffer: Buffer): Promise<SavedAccountMedi
     await writeFile(tmp, buffer);
     await renameWithRetry(tmp, target);
   }
+
+  // 头像显示尺寸只有 32–52px，`-t`（512）这一档就是为它准备的。
+  await ensureDerivatives(MEDIA_DIR, file, buffer);
 
   return {
     file,

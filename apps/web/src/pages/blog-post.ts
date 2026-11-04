@@ -24,6 +24,7 @@ import { createReplyForm } from '../blog/reply-form';
 import { createVoteBar } from '../blog/vote';
 import type { PostDetail, ReplyView, VoteValue } from '../blog/types';
 import { BLOG_COPY, BLOG_TITLE_SUFFIX } from '../content/blog';
+import { enhanceMediaImages } from '../shared/media';
 import { renderMarkdown } from '../shared/markdown';
 import type { RouteView } from '../router';
 
@@ -159,6 +160,8 @@ export function createBlogPostPage(options: BlogPostPageOptions): RouteView {
     const article = el('div', 'bp-article');
     const body = el('div', 'md-body');
     body.append(renderMarkdown(current.markdown));
+    // 站内插图换成 `-c` 压缩版并包上原图链接；外站图片原样放过。
+    enhanceMediaImages(body, 'content');
     article.append(body);
 
     const foot = el('div', 'bp-foot');

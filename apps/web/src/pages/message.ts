@@ -19,7 +19,6 @@ import {
   type Outcome,
 } from '../message/api';
 import { createMessageCard, type MessageCardHandle, type ReplyTarget } from '../message/card';
-import { closeLightbox } from '../message/lightbox';
 import { createComposer, type ComposerHandle } from '../message/composer';
 import type { ComposerSubmitInput, MessageView, PostedResult } from '../message/types';
 import type { RouteView } from '../router';
@@ -303,7 +302,6 @@ export function createMessagePage(): RouteView {
       composer?.dispose();
       composer = null;
       cards.clear();
-      closeLightbox();
       document.title = baseTitle;
     },
   };

@@ -23,6 +23,7 @@ import {
   sniffImage,
   type MediaExt,
 } from '../media/sniff-image.js';
+import { ensureDerivatives } from '../media/derivatives.js';
 import { MessageError } from './validate.js';
 
 /** 源码在 `src/message/media.ts`、编译在 `dist/message/media.js`，两者都往上两跳。 */
@@ -31,6 +32,9 @@ const MEDIA_DIR = path.join(API_ROOT, 'data', 'message-media');
 
 /** 前缀 `m` 是留言专属；扩展名只认 magic byte 判出来的那五种。 */
 const MEDIA_RE = /^m-[a-f0-9]{16}\.(png|jpg|webp|gif|avif)$/;
+
+/** **下发**用的白名单：原图 + 两档派生图。入库校验仍只认上面那条。 */
+const SERVED_MEDIA_RE = /^m-[a-f0-9]{16}(?:\.(?:png|jpg|webp|gif|avif)|-[tc]\.webp)$/;
 
 export const MAX_MEDIA_BYTES = 5 * 1024 * 1024;
 
@@ -48,6 +52,11 @@ export const messageMediaPaths = {
 
 export function isMessageMediaName(value: string): boolean {
   return MEDIA_RE.test(value);
+}
+
+/** 能不能作为图片被下发（原图或派生图）。 */
+export function isServedMessageMediaName(value: string): boolean {
+  return SERVED_MEDIA_RE.test(value);
 }
 
 export function messageMediaMime(name: string): string {
@@ -105,6 +114,10 @@ export async function saveMedia(buffer: Buffer): Promise<SavedMessageMedia> {
     await writeFile(tmp, buffer);
     await renameWithRetry(tmp, target);
   }
+
+  // 两档派生图。留言图在客户端已经被压过（`message/compress.ts`），这里通常只花
+  // 一两百毫秒；仍然走同一个入口，免得「客户端压过」这条前提以后被悄悄改掉。
+  await ensureDerivatives(MEDIA_DIR, name, buffer);
 
   return {
     name,

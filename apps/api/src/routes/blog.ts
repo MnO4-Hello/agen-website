@@ -37,7 +37,7 @@ import { loadLiveAuthors } from '../blog/authors.js';
 import {
   blogMediaMime,
   blogMediaPaths,
-  isBlogMediaName,
+  isServedBlogMediaName,
 } from '../blog/media.js';
 import { consumeChallenge, issueChallenge } from '../shared/captcha.js';
 import {
@@ -161,7 +161,7 @@ export async function blogRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get('/blog/media/:file', async (request, reply) => {
     const name = (request.params as { file?: string }).file ?? '';
-    if (!isBlogMediaName(name)) return reply.code(404).send({ error: 'not_found' });
+    if (!isServedBlogMediaName(name)) return reply.code(404).send({ error: 'not_found' });
 
     const root = await blogMediaPaths.realDir();
     const real = await realpath(blogMediaPaths.file(name)).catch(() => null);

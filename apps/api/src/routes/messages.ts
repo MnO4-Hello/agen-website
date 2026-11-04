@@ -33,7 +33,7 @@ import { resolveUser } from '../users/session.js';
 import { loadLiveAuthors } from '../message/authors.js';
 import {
   MAX_MEDIA_BYTES,
-  isMessageMediaName,
+  isServedMessageMediaName,
   messageMediaMime,
   messageMediaPaths,
   saveMedia,
@@ -248,7 +248,7 @@ export async function messageRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get('/messages/media/:file', async (request, reply) => {
     const name = (request.params as { file?: string }).file ?? '';
-    if (!isMessageMediaName(name)) return reply.code(404).send({ error: 'not_found' });
+    if (!isServedMessageMediaName(name)) return reply.code(404).send({ error: 'not_found' });
 
     const root = await messageMediaPaths.realDir();
     const real = await realpath(messageMediaPaths.file(name)).catch(() => null);

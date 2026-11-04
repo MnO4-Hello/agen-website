@@ -16,6 +16,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import { moveToTrash, trashStamp } from '../admin/trash.js';
+import { derivedNamesOf } from '../media/derivatives.js';
 import { hashPassword, verifyPassword } from '../users/password.js';
 import {
   accountMediaNameFromUrl,
@@ -92,7 +93,13 @@ async function pruneIfUnused(app: FastifyInstance, url: string): Promise<string 
   if (!name) return null;
   const used = await collectReferencedMedia();
   if (used.has(url)) return null;
-  const moved = await moveToTrash(accountMediaPaths.file(name), 'account-media', trashStamp());
+
+  // 时间戳只算一次：原图与两份派生图必须落进同一个回收站目录。
+  const stamp = trashStamp();
+  const moved = await moveToTrash(accountMediaPaths.file(name), 'account-media', stamp);
+  for (const derived of derivedNamesOf(name)) {
+    await moveToTrash(accountMediaPaths.file(derived), 'account-media', stamp);
+  }
   if (!moved) app.log.warn(`账号媒体未能移入回收站：${name}`);
   return moved;
 }

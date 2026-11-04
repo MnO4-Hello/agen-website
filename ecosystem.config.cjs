@@ -26,7 +26,13 @@ module.exports = {
       exec_mode: 'fork',
 
       autorestart: true,
-      max_memory_restart: '512M',
+      /*
+       * 768M 而不是 512M：`apps/api/src/media/derivatives.ts` 用 sharp 解码原图，
+       * 最坏情况（36MP 的 PNG）解码缓冲约 144MB，加上输入 buffer 与 Node 常驻，
+       * 512M 会在一次大图上传的中途触发重启，把那次上传直接丢掉。
+       * 机器是 1C2G，768M 留出的余量够 SSE 控制台与 JSON 缓存用。
+       */
+      max_memory_restart: '768M',
       // 崩得太快时给个退避，避免把 CPU 打满
       restart_delay: 2000,
       min_uptime: '10s',

@@ -22,6 +22,7 @@ import {
   sniffImage,
   type MediaExt,
 } from '../media/sniff-image.js';
+import { ensureDerivatives } from '../media/derivatives.js';
 import { BlogError } from './validate.js';
 
 /** 源码在 `src/blog/media.ts`、编译在 `dist/blog/media.js`，两者都往上两跳。 */
@@ -30,6 +31,9 @@ const MEDIA_DIR = path.join(API_ROOT, 'data', 'blog-media');
 
 /** 前缀 `b` 是博客专属；扩展名只认 magic byte 判出来的那五种。 */
 const MEDIA_RE = /^b-[a-f0-9]{16}\.(png|jpg|webp|gif|avif)$/;
+
+/** **下发**用的白名单：原图 + 两档派生图。入库校验仍只认上面那条。 */
+const SERVED_MEDIA_RE = /^b-[a-f0-9]{16}(?:\.(?:png|jpg|webp|gif|avif)|-[tc]\.webp)$/;
 
 /** 单张图上限。与账号头像同一档：博客正文里的插图很少需要更大。 */
 export const MAX_MEDIA_BYTES = 8 * 1024 * 1024;
@@ -48,6 +52,11 @@ export const blogMediaPaths = {
 
 export function isBlogMediaName(value: string): boolean {
   return MEDIA_RE.test(value);
+}
+
+/** 能不能作为图片被下发（原图或派生图）。 */
+export function isServedBlogMediaName(value: string): boolean {
+  return SERVED_MEDIA_RE.test(value);
 }
 
 export function blogMediaMime(name: string): string {
@@ -108,6 +117,9 @@ export async function saveMedia(buffer: Buffer): Promise<SavedBlogMedia> {
     await writeFile(tmp, buffer);
     await renameWithRetry(tmp, target);
   }
+
+  // 两档派生图。原图已存在时这里只补缺的那一档，重复上传零额外开销。
+  await ensureDerivatives(MEDIA_DIR, file, buffer);
 
   return { file, url: `/api/blog/media/${file}`, mime: mimeOfMediaName(file), size: buffer.length };
 }

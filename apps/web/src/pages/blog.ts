@@ -22,6 +22,7 @@ import { formatCount, formatRelative } from '../blog/present';
 import type { CategoryView, PostSort, PostSummary, TagView, VoteValue } from '../blog/types';
 import { getAuthState, rememberReturnTo } from '../auth/session';
 import type { RouteView } from '../router';
+import { createMediaImage, photoLink } from '../shared/media';
 
 const PAGE_SIZE = 10;
 const STORAGE_KEY = 'blog:list:v1';
@@ -394,14 +395,12 @@ export function createBlogPage(): RouteView {
     // 有封面才在最左侧插一个正方形小窗口；没有就保持原来的整行排版。
     if (post.coverImage) {
       card.classList.add('bl-card--cover');
-      const img = el('img');
-      img.src = post.coverImage;
-      img.alt = '';
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      const cover = el('div', 'bl-card__cover');
-      cover.append(img);
-      card.append(cover, main);
+      /*
+       * 卡片本身是 `<article>`（只有标题是链接），所以封面可以再包一层 `<a>` 而不产生
+       * 嵌套锚点。窗口只有 4.5rem 见方，用 `thumb` 那档（长边 512）已经绰绰有余。
+       */
+      const img = createMediaImage({ src: post.coverImage, tier: 'thumb' });
+      card.append(photoLink(post.coverImage, img, 'bl-card__cover'), main);
     } else {
       card.append(main);
     }

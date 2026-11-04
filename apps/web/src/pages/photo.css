@@ -1,0 +1,117 @@
+/* ---------------------------------------------------------------------------
+   原图查看页（`#photo/<文件名>`）
+
+   版式骨架照抄作品详情页（`styles.css` 的 `.wdetail` 一段）：撑满一屏、
+   让开 sticky 顶栏、内层限宽居中。刻意不引任何新 token。
+--------------------------------------------------------------------------- */
+
+.photo {
+  position: relative;
+  min-height: 100lvh;
+  padding: calc(var(--header-height) + clamp(1.5rem, 4vw, 2.5rem)) clamp(1.25rem, 5vw, 4rem)
+    clamp(4rem, 10vw, 7rem);
+}
+
+.photo__stage {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  width: min(68rem, 100%);
+  margin: 0 auto;
+  animation: photo-in 0.4s var(--ease-out) both;
+}
+
+@keyframes photo-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.photo__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 0.9rem;
+}
+
+.photo__title {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  letter-spacing: 0.04em;
+}
+
+/* 文件名与像素尺寸都是「技术信息」，用等宽体；长文件名允许换行。 */
+.photo__meta {
+  margin: 0;
+  color: var(--muted);
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.photo__pill {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 1.15rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--brand-strong);
+  font-size: 0.84rem;
+  text-decoration: none;
+  transition:
+    border-color 0.24s var(--ease-out),
+    background 0.24s var(--ease-out);
+}
+
+.photo__pill:hover,
+.photo__pill:focus-visible {
+  border-color: var(--brand);
+  background: #fff;
+}
+
+.photo__figure {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/*
+ * 按原图**实际尺寸**显示：只设 `max-width`，不放大、不裁切。
+ * 图片自己带尺寸，所以这里不写 `aspect-ratio`——写了反而会在加载前占出一块
+ * 与原图比例不符的空白。
+ */
+.photo__image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #dfeadb;
+  box-shadow: 0 12px 34px rgba(31, 61, 43, 0.12);
+}
+
+/* 加载中与失败时都不留空框。 */
+.photo:not(.is-ready) .photo__figure:empty,
+.photo--error .photo__figure {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .photo__pill {
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo__stage {
+    animation: none;
+  }
+}

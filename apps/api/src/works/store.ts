@@ -25,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { moveToTrash, trashStamp } from '../admin/trash.js';
+import { buildDerivatives, derivedNamesOf, writeDerivatives } from '../media/derivatives.js';
 import {
   hashedMediaName,
   mimeOfMediaName,
@@ -62,6 +63,14 @@ const MEDIA_DIR = path.join(DATA_DIR, 'works-media');
 /** 媒体命名：`w-` + 内容 sha1 前 16 位 + 由 magic byte 决定的扩展名。 */
 const MEDIA_RE = /^w-[a-f0-9]{16}\.(png|jpg|webp|gif|avif)$/;
 
+/**
+ * **下发**用的白名单：原图 + 两档派生图（`-t.webp` / `-c.webp`）。
+ *
+ * 刻意与上面的 `MEDIA_RE` 分开：入库校验与 `mediaNameFromUrl()` 只认原图，
+ * 否则派生图会被当成作品图引用，回收逻辑与去重都会乱。
+ */
+const SERVED_MEDIA_RE = /^w-[a-f0-9]{16}(?:\.(?:png|jpg|webp|gif|avif)|-[tc]\.webp)$/;
+
 /* ---------------------------------------------------------------------------
    目录与媒体路径
 --------------------------------------------------------------------------- */
@@ -80,6 +89,11 @@ export const mediaPaths = {
 
 export function isMediaName(value: string): boolean {
   return MEDIA_RE.test(value);
+}
+
+/** 能不能作为图片被下发（原图或派生图）。 */
+export function isServedMediaName(value: string): boolean {
+  return SERVED_MEDIA_RE.test(value);
 }
 
 export function mediaMime(name: string): string {
@@ -391,6 +405,14 @@ export function removeWork(id: string): Promise<{ trashedTo: string | null }> {
       if (!name) continue;
       const result = await moveToTrash(mediaPaths.file(name), 'works-media', stampValue);
       if (result) moved += 1;
+      /*
+       * 派生图必须跟着原图走：否则每删一个作品，media 目录里就多两份永远不会被
+       * 引用的孤儿（`-t` / `-c`）。落在同一个时间戳目录里，回收站的目录结构不变。
+       */
+      for (const derived of derivedNamesOf(name)) {
+        const extra = await moveToTrash(mediaPaths.file(derived), 'works-media', stampValue);
+        if (extra) moved += 1;
+      }
     }
 
     return { trashedTo: moved > 0 ? `.admin-trash/works-media/${stampValue}` : null };
@@ -449,16 +471,23 @@ export interface SavedMedia {
  *
  * 文件名 = 内容哈希：同一张图反复上传只占一份，URL 也因此可以放心用
  * `immutable` 长缓存（换图必换 URL，不会有「改了图但浏览器还显示旧的」）。
+ *
+ * ⚠️ sharp 的渲染（几百毫秒到几秒）**必须留在 `exclusive()` 之外**：那条队列同时
+ * 给 `works.json` 的读改写排队，堵住它等于上传一张 25MB 图期间让整站的列表、
+ * 详情、发布一起变慢。队列里只留原图与派生图的落盘（各一次 writeFile + rename）。
  */
-export function saveMedia(buffer: Buffer): Promise<SavedMedia> {
-  return exclusive(async () => {
-    const ext = sniffImage(buffer);
-    if (!ext) {
-      throw new WorkError(415, '只支持 PNG / JPEG / WebP / GIF / AVIF 图片。');
-    }
+export async function saveMedia(buffer: Buffer): Promise<SavedMedia> {
+  const ext = sniffImage(buffer);
+  if (!ext) {
+    throw new WorkError(415, '只支持 PNG / JPEG / WebP / GIF / AVIF 图片。');
+  }
 
+  // 哈希是纯 CPU 的同步运算，队列外算。
+  const file = hashedMediaName('w', buffer, ext);
+  const derived = await buildDerivatives(MEDIA_DIR, file, buffer);
+
+  return exclusive(async () => {
     await mkdir(MEDIA_DIR, { recursive: true });
-    const file = hashedMediaName('w', buffer, ext);
     const target = mediaPaths.file(file);
 
     const exists = await stat(target).then(
@@ -470,6 +499,8 @@ export function saveMedia(buffer: Buffer): Promise<SavedMedia> {
       await writeFile(tmp, buffer);
       await renameWithRetry(tmp, target);
     }
+
+    await writeDerivatives(MEDIA_DIR, derived);
 
     return { file, url: `/api/works/media/${file}`, mime: mimeOfMediaName(file), size: buffer.length };
   });
